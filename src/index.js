@@ -1,4 +1,6 @@
-(() => {
+import _ from 'lodash';
+
+((_) => {
 
     'use strict';
 
@@ -6,16 +8,26 @@
     VIEW
     */
 
-    const VIEW = function(modelData) {
+    const View = function(options) {
+
+        let self = this;
 
         // this is called whenever the mediator is instantiated
-        this.initialize = () => {};
+        self.initialize = () => {};
+
+        //render the view
+        self.render = () => {};
+
+        self = _.extend(self, options);
 
         // run it on instantiation
-        this.initialize();
+        self.initialize();
+
+        // now run render on instantiation
+        self.render();
 
     };
 
-    module.exports = VIEW;
+    module.exports = View;
 
-})();
+})(_);
