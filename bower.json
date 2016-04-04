@@ -1,0 +1,23 @@
+{
+  "name": "white-label-view",
+  "description": "A simple JS view",
+  "main": "dist/index.js",
+  "authors": [
+    "bshack"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "javascript",
+    "js",
+    "view"
+  ],
+  "homepage": "https://github.com/bshack/white-label-view",
+  "moduleType": [
+    "amd"
+  ],
+  "ignore": [
+    "**/.*",
+    "node_modules"
+  ],
+  "version": "1.0.0"
+}
