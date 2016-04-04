@@ -1,27 +1,19 @@
 (function (global, factory) {
     if (typeof define === "function" && define.amd) {
-        define(['module', 'lodash'], factory);
+        define(['module'], factory);
     } else if (typeof exports !== "undefined") {
-        factory(module, require('lodash'));
+        factory(module);
     } else {
         var mod = {
             exports: {}
         };
-        factory(mod, global.lodash);
+        factory(mod);
         global.index = mod.exports;
     }
-})(this, function (module, _lodash) {
+})(this, function (module) {
     'use strict';
 
-    var _lodash2 = _interopRequireDefault(_lodash);
-
-    function _interopRequireDefault(obj) {
-        return obj && obj.__esModule ? obj : {
-            default: obj
-        };
-    }
-
-    (function (_) {
+    (function () {
 
         'use strict';
 
@@ -34,14 +26,19 @@
             render: function render() {}
         };
 
-        var View = function View(options) {
+        var View = function View(overrideView) {
 
-            var extendedView = _.extend(baseView, options);
-            var prop = void 0;
+            var overrideProp = void 0;
+            var baseProp = void 0;
 
-            //end
-            for (prop in extendedView) {
-                this[prop] = extendedView[prop];
+            //extend he base view with overrides
+            for (overrideProp in overrideView) {
+                baseView[overrideProp] = overrideView[overrideProp];
+            }
+
+            //add view properties to this
+            for (baseProp in baseView) {
+                this[baseProp] = baseView[baseProp];
             }
 
             // run it on instantiation
@@ -52,5 +49,5 @@
         };
 
         module.exports = View;
-    })(_lodash2.default);
+    })();
 });

@@ -1,6 +1,4 @@
-import _ from 'lodash';
-
-((_) => {
+(() => {
 
     'use strict';
 
@@ -8,19 +6,24 @@ import _ from 'lodash';
     VIEW
     */
 
-    const baseView = {
+    let baseView = {
         initialize: () => {},
         render: () => {}
     };
 
-    const View = function(options) {
+    const View = function(overrideView) {
 
-        const extendedView = _.extend(baseView, options);
-        let prop;
+        let overrideProp;
+        let baseProp;
 
-        //end
-        for (prop in extendedView) {
-            this[prop] = extendedView[prop];
+        //extend he base view with overrides
+        for (overrideProp in overrideView) {
+            baseView[overrideProp] = overrideView[overrideProp];
+        }
+
+        //add view properties to this
+        for (baseProp in baseView) {
+            this[baseProp] = baseView[baseProp];
         }
 
         // run it on instantiation
@@ -33,4 +36,4 @@ import _ from 'lodash';
 
     module.exports = View;
 
-})(_);
+})();
