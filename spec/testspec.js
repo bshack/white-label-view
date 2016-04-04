@@ -12,11 +12,7 @@ describe("A suite", function() {
 
 describe("A View", function() {
     beforeEach(function() {
-        view = new View({
-            initialize: function() {
-                console.log('initialized');
-            }
-        });
+        view = new View();
     });
     afterEach(function() {
         view = {};

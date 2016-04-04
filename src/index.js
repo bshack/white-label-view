@@ -8,23 +8,26 @@ import _ from 'lodash';
     VIEW
     */
 
+    const baseView = {
+        initialize: () => {},
+        render: () => {}
+    };
+
     const View = function(options) {
 
-        let self = this;
+        const extendedView = _.extend(baseView, options);
+        let prop;
 
-        // this is called whenever the mediator is instantiated
-        self.initialize = () => {};
-
-        //render the view
-        self.render = () => {};
-
-        self = _.extend(self, options);
+        //end
+        for (prop in extendedView) {
+            this[prop] = extendedView[prop];
+        }
 
         // run it on instantiation
-        self.initialize();
+        this.initialize();
 
         // now run render on instantiation
-        self.render();
+        this.render();
 
     };
 

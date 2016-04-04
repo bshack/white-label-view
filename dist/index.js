@@ -29,23 +29,26 @@
         VIEW
         */
 
+        var baseView = {
+            initialize: function initialize() {},
+            render: function render() {}
+        };
+
         var View = function View(options) {
 
-            var self = this;
+            var extendedView = _.extend(baseView, options);
+            var prop = void 0;
 
-            // this is called whenever the mediator is instantiated
-            self.initialize = function () {};
-
-            //render the view
-            self.render = function () {};
-
-            self = _.extend(self, options);
+            //end
+            for (prop in extendedView) {
+                this[prop] = extendedView[prop];
+            }
 
             // run it on instantiation
-            self.initialize();
+            this.initialize();
 
             // now run render on instantiation
-            self.render();
+            this.render();
         };
 
         module.exports = View;
