@@ -18,12 +18,12 @@
         let overrideProp;
         let baseProp;
 
-        //extend he base view with overrides
+        //extend base view
         for (overrideProp in overrideView) {
             baseView[overrideProp] = overrideView[overrideProp];
         }
 
-        //add view properties to this
+        //extend view
         for (baseProp in baseView) {
             this[baseProp] = baseView[baseProp];
         }
