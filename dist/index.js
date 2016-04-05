@@ -23,6 +23,8 @@
 
         var baseView = {
             initialize: function initialize() {},
+            //for domless testing
+            element: typeof document !== 'undefined' ? document.createElement('div') : {},
             render: function render() {}
         };
 

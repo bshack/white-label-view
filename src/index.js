@@ -8,6 +8,8 @@
 
     let baseView = {
         initialize: () => {},
+        //for domless testing
+        element: (typeof document !== 'undefined')? document.createElement('div') : {},
         render: () => {}
     };
 
