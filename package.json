@@ -1,6 +1,6 @@
 {
     "name": "white-label-view",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "A simple JS view.",
     "main": "dist/index.js",
     "scripts": {
