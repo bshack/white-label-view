@@ -4,7 +4,9 @@
 
 A simple ES6 JS view.
 
-Learn more about ES6 classes here: https://babeljs.io/docs/learn-es2015/
+Learn more about ES6 classes here:
+
+https://babeljs.io/docs/learn-es2015/
 
 ## Install
 

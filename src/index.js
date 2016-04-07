@@ -27,6 +27,7 @@
             return this;
 
         }
+        
     };
 
     module.exports = View;
