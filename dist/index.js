@@ -13,6 +13,30 @@
 })(this, function (module) {
     'use strict';
 
+    function _classCallCheck(instance, Constructor) {
+        if (!(instance instanceof Constructor)) {
+            throw new TypeError("Cannot call a class as a function");
+        }
+    }
+
+    var _createClass = function () {
+        function defineProperties(target, props) {
+            for (var i = 0; i < props.length; i++) {
+                var descriptor = props[i];
+                descriptor.enumerable = descriptor.enumerable || false;
+                descriptor.configurable = true;
+                if ("value" in descriptor) descriptor.writable = true;
+                Object.defineProperty(target, descriptor.key, descriptor);
+            }
+        }
+
+        return function (Constructor, protoProps, staticProps) {
+            if (protoProps) defineProperties(Constructor.prototype, protoProps);
+            if (staticProps) defineProperties(Constructor, staticProps);
+            return Constructor;
+        };
+    }();
+
     (function () {
 
         'use strict';
@@ -21,34 +45,31 @@
         VIEW
         */
 
-        var baseView = {
-            initialize: function initialize() {},
-            //for domless testing
-            element: typeof document !== 'undefined' ? document.createElement('div') : {},
-            render: function render() {}
-        };
+        var View = function () {
+            function View() {
+                _classCallCheck(this, View);
 
-        var View = function View(overrideView) {
-
-            var overrideProp = void 0;
-            var baseProp = void 0;
-
-            //extend base view
-            for (overrideProp in overrideView) {
-                baseView[overrideProp] = overrideView[overrideProp];
+                this.element = typeof document !== 'undefined' ? document.createElement('div') : {};
+                this.initialize();
+                this.render();
             }
 
-            //extend view
-            for (baseProp in baseView) {
-                this[baseProp] = baseView[baseProp];
-            }
+            _createClass(View, [{
+                key: 'initialize',
+                value: function initialize() {
 
-            // run it on instantiation
-            this.initialize();
+                    return this;
+                }
+            }, {
+                key: 'render',
+                value: function render() {
 
-            // now run render on instantiation
-            this.render();
-        };
+                    return this;
+                }
+            }]);
+
+            return View;
+        }();
 
         module.exports = View;
     })();

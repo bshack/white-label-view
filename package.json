@@ -1,7 +1,7 @@
 {
     "name": "white-label-view",
-    "version": "1.0.2",
-    "description": "A simple JS view.",
+    "version": "1.0.3",
+    "description": "A simple ES6 JS view.",
     "main": "dist/index.js",
     "scripts": {
         "postinstall": "./node_modules/babel-cli/bin/babel.js ./src/index.js --out-file ./dist/index.js",
@@ -14,7 +14,9 @@
     "keywords": [
         "js",
         "javacript",
-        "view"
+        "view",
+        "es6",
+        "es2015"
     ],
     "author": "bshack",
     "license": "MIT",

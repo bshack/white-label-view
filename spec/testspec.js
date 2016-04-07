@@ -12,9 +12,25 @@ describe("A suite", function() {
 
 describe("A View", function() {
     beforeEach(function() {
-        view = new View({
-            events: function() {}
-        });
+        let self = this;
+        this.initFunction = function() {};
+        this.renderFunction = function() {};
+        spyOn(this,'initFunction');
+        spyOn(this,'renderFunction');
+        const ViewTest = class extends View {
+            constructor() {
+                super();
+            }
+            something() {
+            }
+            initialize() {
+                self.initFunction();
+            }
+            render() {
+                self.renderFunction();
+            }
+        };
+        view = new ViewTest();
     });
     afterEach(function() {
         view = {};
@@ -32,6 +48,12 @@ describe("A View", function() {
         expect(view.element).toEqual(jasmine.any(Object));
     });
     it("is extendable", function() {
-        expect(view.events).toEqual(jasmine.any(Function));
+        expect(view.something).toEqual(jasmine.any(Function));
+    });
+    it("fires initialize function on Instantiation", function() {
+        expect(this.initFunction).toHaveBeenCalled();
+    });
+    it("fires render function on Instantiation", function() {
+        expect(this.renderFunction).toHaveBeenCalled();
     });
 });

@@ -6,34 +6,27 @@
     VIEW
     */
 
-    let baseView = {
-        initialize: () => {},
-        //for domless testing
-        element: (typeof document !== 'undefined')? document.createElement('div') : {},
-        render: () => {}
-    };
+    const View = class {
 
-    const View = function(overrideView) {
+        constructor() {
 
-        let overrideProp;
-        let baseProp;
+            this.element = (typeof document !== 'undefined')? document.createElement('div') : {};
+            this.initialize();
+            this.render();
 
-        //extend base view
-        for (overrideProp in overrideView) {
-            baseView[overrideProp] = overrideView[overrideProp];
         }
 
-        //extend view
-        for (baseProp in baseView) {
-            this[baseProp] = baseView[baseProp];
+        initialize() {
+
+            return this;
+
         }
 
-        // run it on instantiation
-        this.initialize();
+        render() {
 
-        // now run render on instantiation
-        this.render();
+            return this;
 
+        }
     };
 
     module.exports = View;
