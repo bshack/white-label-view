@@ -14,7 +14,7 @@ Install the node module:
 npm install white-label-view --save
 ```
 
-## Require
+## Import
 
 ```
 import View from 'white-label-view';
