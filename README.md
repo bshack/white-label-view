@@ -26,7 +26,7 @@ var View = require('white-label-view');
 var myView = new View();
 ```
 
-At instantiation you can extend the view for your own needs:
+or extend the view class for your own needs:
 
 ```
 const MyView = class extends View {
@@ -36,6 +36,8 @@ const MyView = class extends View {
 };
 
 const myView = new MyView();
+
+myView.someGreatFeature();
 ```
 
 ## initialize and render
