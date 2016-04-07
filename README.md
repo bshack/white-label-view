@@ -17,7 +17,7 @@ npm install white-label-view --save
 ## Require
 
 ```
-var View = require('white-label-view');
+import View from 'white-label-view';
 ```
 
 ## Instantiate

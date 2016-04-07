@@ -20,28 +20,28 @@
     </h1>
     <div class='clearfix'>
       <div class='fl pad1y space-right2'>
-        <span class="strong">78.95% </span>
+        <span class="strong">86.67% </span>
         <span class="quiet">Statements</span>
-        <span class='fraction'>30/38</span>
+        <span class='fraction'>26/30</span>
       </div>
       <div class='fl pad1y space-right2'>
-        <span class="strong">55.56% </span>
+        <span class="strong">58.33% </span>
         <span class="quiet">Branches</span>
-        <span class='fraction'>10/18</span>
+        <span class='fraction'>7/12</span>
       </div>
       <div class='fl pad1y space-right2'>
-        <span class="strong">81.82% </span>
+        <span class="strong">77.78% </span>
         <span class="quiet">Functions</span>
-        <span class='fraction'>9/11</span>
+        <span class='fraction'>7/9</span>
       </div>
       <div class='fl pad1y space-right2'>
-        <span class="strong">80% </span>
+        <span class="strong">85.71% </span>
         <span class="quiet">Lines</span>
-        <span class='fraction'>28/35</span>
+        <span class='fraction'>12/14</span>
       </div>
     </div>
   </div>
-  <div class='status-line medium'></div>
+  <div class='status-line high'></div>
 <pre><table class="coverage">
 <tr><td class="line-count quiet">1
 2
@@ -85,78 +85,11 @@
 40
 41
 42
-43
-44
-45
-46
-47
-48
-49
-50
-51
-52
-53
-54
-55
-56
-57
-58
-59
-60
-61
-62
-63
-64
-65
-66
-67
-68
-69
-70
-71
-72
-73
-74
-75
-76
-77</td><td class="line-coverage quiet"><span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-yes">1×</span>
+43</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1×</span>
 <span class="cline-any cline-yes">7×</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-yes">2×</span>
-<span class="cline-any cline-yes">2×</span>
-<span class="cline-any cline-yes">2×</span>
-<span class="cline-any cline-yes">2×</span>
-<span class="cline-any cline-yes">2×</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-yes">1×</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -194,90 +127,55 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">(function (global, factory) {
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (typeof define === "function" &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >define.amd)</span> {
-<span class="cstat-no" title="statement not covered" >        define(['module'], factory);</span>
-    } else <span class="missing-if-branch" title="else path not taken" >E</span>if (typeof exports !== "undefined") {
-        factory(module);
-    } else {
-<span class="cstat-no" title="statement not covered" >        var mod = {</span>
-            exports: {}
-        };
-<span class="cstat-no" title="statement not covered" >        factory(mod);</span>
-<span class="cstat-no" title="statement not covered" >        global.index = mod.exports;</span>
-    }
-})(this, function (module) {
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">'use strict';
+&nbsp;
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i &lt; props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; <span class="missing-if-branch" title="else path not taken" >E</span>if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { <span class="missing-if-branch" title="else path not taken" >E</span>if (protoProps) defineProperties(Constructor.prototype, protoProps); <span class="missing-if-branch" title="if path not taken" >I</span>if (staticProps) <span class="cstat-no" title="statement not covered" >defineProperties(Constructor, staticProps); </span>return Constructor; }; }();
+&nbsp;
+function _classCallCheck(instance, Constructor) { <span class="missing-if-branch" title="if path not taken" >I</span>if (!(instance instanceof Constructor)) { <span class="cstat-no" title="statement not covered" >throw new TypeError("Cannot call a class as a function"); </span>} }
+&nbsp;
+(function () {
+&nbsp;
     'use strict';
 &nbsp;
-    function _classCallCheck(instance, Constructor) {
-        <span class="missing-if-branch" title="if path not taken" >I</span>if (!(instance instanceof Constructor)) {
-<span class="cstat-no" title="statement not covered" >            throw new TypeError("Cannot call a class as a function");</span>
-        }
-    }
+    /*
+    VIEW
+    */
 &nbsp;
-    var _createClass = function () {
-        function defineProperties(target, props) {
-            for (var i = 0; i &lt; props.length; i++) {
-                var descriptor = props[i];
-                descriptor.enumerable = descriptor.enumerable || false;
-                descriptor.configurable = true;
-                <span class="missing-if-branch" title="else path not taken" >E</span>if ("value" in descriptor) descriptor.writable = true;
-                Object.defineProperty(target, descriptor.key, descriptor);
+    var View = function () {
+        function View() {
+            _classCallCheck(this, View);
+&nbsp;
+            this.element = typeof document !== 'undefined' ? <span class="branch-0 cbranch-no" title="branch not covered" >document.createElement('div') </span>: {};
+            this.initialize();
+            this.render();
+        }
+&nbsp;
+        _createClass(View, [{
+            key: 'initialize',
+            value: <span class="fstat-no" title="function not covered" >function initialize() {</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >                return this;</span>
             }
-        }
+        }, {
+            key: 'render',
+            value: <span class="fstat-no" title="function not covered" >function render() {</span>
 &nbsp;
-        return function (Constructor, protoProps, staticProps) {
-            <span class="missing-if-branch" title="else path not taken" >E</span>if (protoProps) defineProperties(Constructor.prototype, protoProps);
-            <span class="missing-if-branch" title="if path not taken" >I</span>if (staticProps) <span class="cstat-no" title="statement not covered" >defineProperties(Constructor, staticProps);</span>
-            return Constructor;
-        };
+<span class="cstat-no" title="statement not covered" >                return this;</span>
+            }
+        }]);
+&nbsp;
+        return View;
     }();
 &nbsp;
-    (function () {
-&nbsp;
-        'use strict';
-&nbsp;
-        /*
-        VIEW
-        */
-&nbsp;
-        var View = function () {
-            function View() {
-                _classCallCheck(this, View);
-&nbsp;
-                this.element = typeof document !== 'undefined' ? <span class="branch-0 cbranch-no" title="branch not covered" >document.createElement('div') </span>: {};
-                this.initialize();
-                this.render();
-            }
-&nbsp;
-            _createClass(View, [{
-                key: 'initialize',
-                value: <span class="fstat-no" title="function not covered" >function initialize() {</span>
-&nbsp;
-<span class="cstat-no" title="statement not covered" >                    return this;</span>
-                }
-            }, {
-                key: 'render',
-                value: <span class="fstat-no" title="function not covered" >function render() {</span>
-&nbsp;
-<span class="cstat-no" title="statement not covered" >                    return this;</span>
-                }
-            }]);
-&nbsp;
-            return View;
-        }();
-&nbsp;
-        module.exports = View;
-    })();
-});
+    module.exports = View;
+})();
 &nbsp;</pre></td></tr>
 </table></pre>
 <div class='push'></div><!-- for sticky footer -->
 </div><!-- /wrapper -->
 <div class='footer quiet pad2 space-top1 center small'>
   Code coverage
-  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Wed Apr 06 2016 21:18:20 GMT-0400 (EDT)
+  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Wed Apr 06 2016 21:48:48 GMT-0400 (EDT)
 </div>
 </div>
 <script src="../prettify.js"></script>
