@@ -40,7 +40,7 @@ const myView = new MyView();
 myView.someGreatFeature();
 ```
 
-## initialize and render
+## Initialize and Render
 
 At instantiation both of these functions will execute if defined, first initialize and then render:
 
@@ -57,7 +57,7 @@ const MyView = class extends View {
 const myView = new MyView();
 ```
 
-## element
+## Element
 
 At instantiation you can set an element for the view:
 
