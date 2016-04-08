@@ -83,10 +83,12 @@ describe("A View", function() {
         expect(Result).toEqual(jasmine.any(Object));
     });
     it("fires render function and returns 'this'", function() {
+        view = new View();
         let Result = view.render();
         expect(Result).toEqual(jasmine.any(Object));
     });
     it("fires addListeners function and returns 'this'", function() {
+        view = new View();
         let Result = view.addListeners();
         expect(Result).toEqual(jasmine.any(Object));
     });
