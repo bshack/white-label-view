@@ -42,23 +42,6 @@ const myView = new MyView();
 myView.someGreatFeature();
 ```
 
-## Initialize and Render
-
-At instantiation both of these functions will execute if defined, first initialize and then render:
-
-```
-const MyView = class extends View {
-    initialize() {
-        console.log('view has initialized');
-    }
-    render() {
-        console.log('render my view now');
-    }
-};
-
-const myView = new MyView();
-```
-
 ## Element
 
 At instantiation you can set an element for the view:

@@ -17,8 +17,6 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
             _classCallCheck(this, View);
 
             this.element = typeof document !== 'undefined' ? document.createElement('div') : {};
-            this.initialize();
-            this.render();
         }
 
         _createClass(View, [{
@@ -30,6 +28,12 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
         }, {
             key: 'render',
             value: function render() {
+
+                return this;
+            }
+        }, {
+            key: 'addListeners',
+            value: function addListeners() {
 
                 return this;
             }

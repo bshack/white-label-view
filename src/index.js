@@ -11,8 +11,6 @@
         constructor() {
 
             this.element = (typeof document !== 'undefined')? document.createElement('div') : {};
-            this.initialize();
-            this.render();
 
         }
 
@@ -27,7 +25,13 @@
             return this;
 
         }
-        
+
+        addListeners() {
+
+            return this;
+            
+        }
+
     };
 
     module.exports = View;
