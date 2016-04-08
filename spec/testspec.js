@@ -24,7 +24,6 @@ describe("A View", function() {
                 super();
             }
             something() {
-                return this;
             }
             initialize() {
                 self.initFunction();
