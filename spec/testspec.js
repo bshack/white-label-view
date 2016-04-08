@@ -24,15 +24,19 @@ describe("A View", function() {
                 super();
             }
             something() {
+                return this;
             }
             initialize() {
                 self.initFunction();
+                return this;
             }
             render() {
                 self.renderFunction();
+                return this;
             }
             addListeners() {
                 self.addListenersFunction();
+                return this;
             }
         };
         view = new ViewTest();
@@ -59,15 +63,31 @@ describe("A View", function() {
         expect(view.something).toEqual(jasmine.any(Function));
     });
     it("fires initialize function", function() {
-        view.initialize();
+        let Result = view.initialize();
         expect(this.initFunction).toHaveBeenCalled();
+        expect(Result).toEqual(jasmine.any(Object));
     });
     it("fires render function", function() {
-        view.render();
+        let Result = view.render();
         expect(this.renderFunction).toHaveBeenCalled();
+        expect(Result).toEqual(jasmine.any(Object));
     });
     it("fires addListeners function", function() {
-        view.addListeners();
+        let Result = view.addListeners();
         expect(this.addListenersFunction).toHaveBeenCalled();
+        expect(Result).toEqual(jasmine.any(Object));
+    });
+    it("fires initialize function and returns 'this'", function() {
+        view = new View();
+        let Result = view.initialize();
+        expect(Result).toEqual(jasmine.any(Object));
+    });
+    it("fires render function and returns 'this'", function() {
+        let Result = view.render();
+        expect(Result).toEqual(jasmine.any(Object));
+    });
+    it("fires addListeners function and returns 'this'", function() {
+        let Result = view.addListeners();
+        expect(Result).toEqual(jasmine.any(Object));
     });
 });
