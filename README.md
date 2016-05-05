@@ -102,6 +102,6 @@ const MyView = class extends View {
 const myView = new MyView();
 ```
 
-Full delegation documentation here:
+full delegation documentation here:
 
 https://github.com/ftlabs/ftdomdelegate
