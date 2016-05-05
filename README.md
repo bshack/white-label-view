@@ -91,7 +91,7 @@ you can also set your own custom scope:
 ```
 const MyView = class extends View {
     addListeners() {
-        const groupDelegate = this.delegate('ul');
+        const groupDelegate = this.delegate(document.querySelector('ul'));
         groupDelegate.on('click', 'a', function (e) {
             e.preventDefault();
             console.log('anchor in unordered list clicked');
