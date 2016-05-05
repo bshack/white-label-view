@@ -84,7 +84,10 @@ By default the delegation scope is the view's element scope when you don't defin
 
 ```
 const MyView = class extends View {
-    element: document.querySelector('ul'),
+    constructor() {
+        super();
+        this.element = document.querySelector('ul');
+    }
     addListeners() {
         const groupDelegate = this.delegate();
         groupDelegate.on('click', 'a', function (e) {
