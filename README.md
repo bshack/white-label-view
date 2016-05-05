@@ -64,21 +64,7 @@ If you do not set an element a div element will be created in memory and not add
 
 ## Event Delegation
 
-The Financial Times event delegation library 'ftdomdelegate' is bundled in the view and accessible with the 'delegate' method:
-
-```
-const MyView = class extends View {
-    addListeners() {
-        const groupDelegate = this.delegate('ul');
-        groupDelegate.on('click', 'a', function (e) {
-            e.preventDefault();
-            console.log('anchor in unordered list clicked');
-        });
-    }
-};
-
-const myView = new MyView();
-```
+The Financial Times event delegation library 'ftdomdelegate' is bundled in the view and accessible with the 'delegate' method.
 
 By default the delegation scope is the view's element scope when you don't define a custom one:
 
@@ -90,6 +76,22 @@ const MyView = class extends View {
     }
     addListeners() {
         const groupDelegate = this.delegate();
+        groupDelegate.on('click', 'a', function (e) {
+            e.preventDefault();
+            console.log('anchor in unordered list clicked');
+        });
+    }
+};
+
+const myView = new MyView();
+```
+
+you can also set your own custom scope:
+
+```
+const MyView = class extends View {
+    addListeners() {
+        const groupDelegate = this.delegate('ul');
         groupDelegate.on('click', 'a', function (e) {
             e.preventDefault();
             console.log('anchor in unordered list clicked');
