@@ -58,6 +58,8 @@ const MyView = class extends View {
 };
 
 const myView = new MyView();
+
+myView.render();
 ```
 
 If you do not set an element a div element will be created in memory and not added to the DOM.
