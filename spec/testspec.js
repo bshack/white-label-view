@@ -55,6 +55,9 @@ describe("A View", function() {
     it("is has a addListeners function", function() {
         expect(view.addListeners).toEqual(jasmine.any(Function));
     });
+    it("is has a delegate function", function() {
+        expect(view.delegate).toEqual(jasmine.any(Function));
+    });
     it("is has an element object", function() {
         expect(view.element).toEqual(jasmine.any(Object));
     });
