@@ -66,7 +66,7 @@ If you do not set an element a div element will be created in memory and not add
 
 The Financial Times event delegation library 'ftdomdelegate' is bundled in the view and accessible with the 'delegate' method.
 
-By default the delegation scope is the view's element scope when you don't define a custom one:
+By default the delegation scope is the view's element scope:
 
 ```
 const MyView = class extends View {
