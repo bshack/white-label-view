@@ -29,7 +29,13 @@
         addListeners() {
 
             return this;
-            
+
+        }
+
+        delegate(scope) {
+
+            return new require('dom-delegate').Delegate(scope || this.element);
+
         }
 
     };

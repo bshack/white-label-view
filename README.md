@@ -58,6 +58,52 @@ const MyView = class extends View {
 };
 
 const myView = new MyView();
+
+myView.render();
 ```
 
 If you do not set an element a div element will be created in memory and not added to the DOM.
+
+## Event Delegation
+
+The Financial Times event delegation library 'ftdomdelegate' is bundled in the view and accessible with the 'delegate' method.
+
+By default the delegation scope is the view's element scope:
+
+```
+const MyView = class extends View {
+    constructor() {
+        super();
+        this.element = document.querySelector('ul');
+    }
+    addListeners() {
+        const groupDelegate = this.delegate();
+        groupDelegate.on('click', 'a', function (e) {
+            e.preventDefault();
+            console.log('anchor in unordered list clicked');
+        });
+    }
+};
+
+const myView = new MyView();
+```
+
+you can also set your own custom scope:
+
+```
+const MyView = class extends View {
+    addListeners() {
+        const groupDelegate = this.delegate(document.querySelector('ul'));
+        groupDelegate.on('click', 'a', function (e) {
+            e.preventDefault();
+            console.log('anchor in unordered list clicked');
+        });
+    }
+};
+
+const myView = new MyView();
+```
+
+full delegation documentation here:
+
+https://github.com/ftlabs/ftdomdelegate
