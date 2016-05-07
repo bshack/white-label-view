@@ -1,4 +1,4 @@
-import Gator from 'gator';
+import delegated from 'gator';
 
 (() => {
 
@@ -36,7 +36,7 @@ import Gator from 'gator';
 
         delegate(scope) {
 
-            return new Gator(scope || this.element);
+            return delegated(scope || this.element);
 
         }
 

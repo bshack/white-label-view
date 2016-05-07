@@ -82,7 +82,7 @@
                 key: 'delegate',
                 value: function delegate(scope) {
 
-                    return new _gator2.default(scope || this.element);
+                    return (0, _gator2.default)(scope || this.element);
                 }
             }]);
 
