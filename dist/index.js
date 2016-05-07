@@ -1,17 +1,25 @@
 (function (global, factory) {
     if (typeof define === "function" && define.amd) {
-        define(['module'], factory);
+        define(['module', 'gator'], factory);
     } else if (typeof exports !== "undefined") {
-        factory(module);
+        factory(module, require('gator'));
     } else {
         var mod = {
             exports: {}
         };
-        factory(mod);
+        factory(mod, global.gator);
         global.index = mod.exports;
     }
-})(this, function (module) {
+})(this, function (module, _gator) {
     'use strict';
+
+    var _gator2 = _interopRequireDefault(_gator);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
 
     function _classCallCheck(instance, Constructor) {
         if (!(instance instanceof Constructor)) {
@@ -74,7 +82,7 @@
                 key: 'delegate',
                 value: function delegate(scope) {
 
-                    return new require('dom-delegate').Delegate(scope || this.element);
+                    return new _gator2.default(scope || this.element);
                 }
             }]);
 

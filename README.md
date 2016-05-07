@@ -66,7 +66,7 @@ If you do not set an element a div element will be created in memory and not add
 
 ## Event Delegation
 
-The Financial Times event delegation library 'ftdomdelegate' is bundled in the view and accessible with the 'delegate' method.
+The Gator event delegation library is bundled in the view and accessible with the 'delegate' method.
 
 By default the delegation scope is the view's element scope:
 
@@ -106,4 +106,4 @@ const myView = new MyView();
 
 full delegation documentation here:
 
-https://github.com/ftlabs/ftdomdelegate
+https://craig.is/riding/gators

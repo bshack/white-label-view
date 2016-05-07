@@ -1,3 +1,5 @@
+import Gator from 'gator';
+
 (() => {
 
     'use strict';
@@ -34,7 +36,7 @@
 
         delegate(scope) {
 
-            return new require('dom-delegate').Delegate(scope || this.element);
+            return new Gator(scope || this.element);
 
         }
 
