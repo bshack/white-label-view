@@ -3,8 +3,3 @@ node_js:
     - 6
     - 5
     - 4
-before_script:
-    - npm install -g istanbul
-    - npm install -g jasmine-node
-script:
-    - npm test
