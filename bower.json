@@ -11,7 +11,8 @@
     "js",
     "view",
     "es6",
-    "es2015"
+    "es2015",
+    "delegate"
   ],
   "homepage": "https://github.com/bshack/white-label-view",
   "moduleType": [
@@ -21,5 +22,5 @@
     "**/.*",
     "node_modules"
   ],
-  "version": "1.0.10"
+  "version": "1.0.11"
 }
