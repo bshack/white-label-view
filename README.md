@@ -75,10 +75,10 @@ const MyView = class extends View {
     constructor() {
         super();
         this.element = document.querySelector('ul');
+        this.delegated = this.delegate();
     }
     addListeners() {
-        const groupDelegate = this.delegate();
-        groupDelegate.on('click', 'a', function (e) {
+         this.delegated.on('click', 'a', function (e) {
             e.preventDefault();
             console.log('anchor in unordered list clicked');
         });
