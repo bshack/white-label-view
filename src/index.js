@@ -12,38 +12,38 @@ import delegated from 'gator';
 
         constructor() {
 
-            this.element = (typeof document !== 'undefined')? document.createElement('div') : {};
+            if (typeof document !== 'undefined') {
+                this.element = document.createElement('div');
+                this.delegated = this.delegate(this.element);
+            } else {
+                this.element = {};
+                this.delegated = {};
+            }
 
         }
 
         initialize() {
-
             return this;
-
         }
 
         render() {
-
             return this;
-
         }
 
         addListeners() {
-
             return this;
-
         }
 
         delegate(scope) {
-
             return delegated(scope || this.element);
-
         }
 
         destroy() {
-
             return this;
+        }
 
+        removeListeners() {
+            return this;
         }
 
     };

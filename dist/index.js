@@ -57,37 +57,43 @@
             function View() {
                 _classCallCheck(this, View);
 
-                this.element = typeof document !== 'undefined' ? document.createElement('div') : {};
+                if (typeof document !== 'undefined') {
+                    this.element = document.createElement('div');
+                    this.delegated = this.delegate(this.element);
+                } else {
+                    this.element = {};
+                    this.delegated = {};
+                }
             }
 
             _createClass(View, [{
                 key: 'initialize',
                 value: function initialize() {
-
                     return this;
                 }
             }, {
                 key: 'render',
                 value: function render() {
-
                     return this;
                 }
             }, {
                 key: 'addListeners',
                 value: function addListeners() {
-
                     return this;
                 }
             }, {
                 key: 'delegate',
                 value: function delegate(scope) {
-
                     return (0, _gator2.default)(scope || this.element);
                 }
             }, {
                 key: 'destroy',
                 value: function destroy() {
-
+                    return this;
+                }
+            }, {
+                key: 'removeListeners',
+                value: function removeListeners() {
                     return this;
                 }
             }]);
