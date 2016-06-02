@@ -84,6 +84,12 @@
 
                     return (0, _gator2.default)(scope || this.element);
                 }
+            }, {
+                key: 'destroy',
+                value: function destroy() {
+
+                    return this;
+                }
             }]);
 
             return View;

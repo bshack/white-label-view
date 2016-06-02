@@ -40,6 +40,12 @@ import delegated from 'gator';
 
         }
 
+        destroy() {
+
+            return this;
+
+        }
+
     };
 
     module.exports = View;
