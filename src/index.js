@@ -24,7 +24,7 @@ import delegated from 'gator';
         }
         
         template() {
-            //holds the clientside template
+            //holds the client side template
             return this;
         }
         
