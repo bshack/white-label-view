@@ -42,7 +42,40 @@ const myView = new MyView();
 myView.someGreatFeature();
 ```
 
-## Element
+## Basic Structure
+
+This view provides a basic structure to build off of to promote consistancy through out the application. In general is it is a good idea to follow this structure when possible.
+```
+const MyView = class extends View {
+
+    initialize() {
+        //setup the view
+        return this;
+    }
+
+    render() {
+        //render html changes
+        return this;
+    }
+
+    addListeners() {
+        //bind events
+        return this;
+    }
+
+    destroy() {
+        //tear down the view
+        return this;
+    }
+
+    removeListeners() {
+        //unbind events
+        return this;
+    }
+};
+```
+
+### Element
 
 At instantiation you can set an element for the view:
 
@@ -107,31 +140,3 @@ const myView = new MyView();
 full delegation documentation here:
 
 https://craig.is/riding/gators
-
-##Let's look at an example:
-
-import the view module
-```
-import View from 'white-label-view';
-```
-create the view
-```
-const MyView = class extends View {
-    initialize() {
-        this.addListeners();
-    }
-    addListeners() {
-        window.addEventListener('scroll', (e) => {
-            window.console.log('window is scrolling', e);
-        }, false);
-    }
-};
-```
-instantiate the view
-```
-const myView = new MyView();
-```
-initialize the view
-```
-myView.initialize();
-```
