@@ -51,6 +51,10 @@ const MyView = class extends View {
         //setup the view
         return this;
     }
+    template() {
+        //holds the client side template
+        return this;
+    }
     render() {
         //render html changes
         return this;
