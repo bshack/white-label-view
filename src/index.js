@@ -25,6 +25,10 @@ import delegated from 'gator';
         initialize() {
             return this;
         }
+        
+        template() {
+            return this;
+        }
 
         render() {
             return this;
