@@ -49,10 +49,6 @@
 
         'use strict';
 
-        /*
-        VIEW
-        */
-
         var View = function () {
             function View() {
                 _classCallCheck(this, View);
@@ -69,32 +65,43 @@
             _createClass(View, [{
                 key: 'initialize',
                 value: function initialize() {
+                    //setup the view
+                    return this;
+                }
+            }, {
+                key: 'template',
+                value: function template() {
+                    //holds the client side template
                     return this;
                 }
             }, {
                 key: 'render',
                 value: function render() {
+                    //render html changes
                     return this;
                 }
             }, {
                 key: 'addListeners',
                 value: function addListeners() {
+                    //bind events
+                    return this;
+                }
+            }, {
+                key: 'destroy',
+                value: function destroy() {
+                    //tear down the view
+                    return this;
+                }
+            }, {
+                key: 'removeListeners',
+                value: function removeListeners() {
+                    //unbind events
                     return this;
                 }
             }, {
                 key: 'delegate',
                 value: function delegate(scope) {
                     return (0, _gator2.default)(scope || this.element);
-                }
-            }, {
-                key: 'destroy',
-                value: function destroy() {
-                    return this;
-                }
-            }, {
-                key: 'removeListeners',
-                value: function removeListeners() {
-                    return this;
                 }
             }]);
 
