@@ -47,27 +47,22 @@ myView.someGreatFeature();
 This view provides a basic structure to build off of to promote consistancy through out the application. In general is it is a good idea to follow this structure when possible.
 ```
 const MyView = class extends View {
-
     initialize() {
         //setup the view
         return this;
     }
-
     render() {
         //render html changes
         return this;
     }
-
     addListeners() {
         //bind events
         return this;
     }
-
     destroy() {
         //tear down the view
         return this;
     }
-
     removeListeners() {
         //unbind events
         return this;
