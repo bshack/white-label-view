@@ -72,7 +72,7 @@ const MyView = class extends View {
 
 ### Element
 
-At instantiation you can set an element for the view:
+At instantiation you can set an element scope for the view:
 
 ```
 const MyView = class extends View {
