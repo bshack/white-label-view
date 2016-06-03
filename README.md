@@ -107,3 +107,31 @@ const myView = new MyView();
 full delegation documentation here:
 
 https://craig.is/riding/gators
+
+##Let's look at an example:
+
+import the view module
+```
+import View from 'white-label-view';
+```
+create the view
+```
+const MyView = class extends View {
+    initialize() {
+        this.addListeners();
+    }
+    addListeners() {
+        window.addEventListener('scroll', (e) => {
+            window.console.log('window is scrolling', e);
+        }, false);
+    }
+};
+```
+instantiate the view
+```
+const myView = new MyView();
+```
+initialize the view
+```
+myView.initialize();
+```
