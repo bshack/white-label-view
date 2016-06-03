@@ -22,13 +22,7 @@ npm install white-label-view --save
 import View from 'white-label-view';
 ```
 
-## Instantiate
-
-```
-var myView = new View();
-```
-
-or extend the view class for your own needs:
+## Extend
 
 ```
 const MyView = class extends View {
@@ -36,7 +30,11 @@ const MyView = class extends View {
         console.log('this is great!');
     }
 };
+```
 
+## Instantiate
+
+```
 const myView = new MyView();
 
 myView.someGreatFeature();
