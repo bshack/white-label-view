@@ -4,10 +4,6 @@ import delegated from 'gator';
 
     'use strict';
 
-    /*
-    VIEW
-    */
-
     const View = class {
 
         constructor() {
@@ -23,31 +19,37 @@ import delegated from 'gator';
         }
 
         initialize() {
+            //setup the view
             return this;
         }
         
         template() {
+            //holds the client side template
             return this;
         }
-
+        
         render() {
+            //render html changes
             return this;
         }
-
+        
         addListeners() {
+            //bind events
+            return this;
+        }
+        
+        destroy() {
+            //tear down the view
+            return this;
+        }
+        
+        removeListeners() {
+            //unbind events
             return this;
         }
 
         delegate(scope) {
             return delegated(scope || this.element);
-        }
-
-        destroy() {
-            return this;
-        }
-
-        removeListeners() {
-            return this;
         }
 
     };
