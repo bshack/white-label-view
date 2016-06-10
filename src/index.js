@@ -15,6 +15,9 @@ import delegated from 'gator';
                 this.element = {};
                 this.delegated = {};
             }
+            
+            this.script = false;
+            this.style = false;
 
         }
 
@@ -36,6 +39,22 @@ import delegated from 'gator';
         addListeners() {
             //bind events
             return this;
+        }
+        
+        loadScripts() {
+            if (this.script === false) {
+                return this;
+            }
+            const newScript = document.createElement('script');
+            const firstScript = document.getElementsByTagName('script')[0];
+            newScript.src = this.script;
+            firstScript.parentNode.insertBefore(newScript, firstScript);
+        }
+        
+        loadStyles() {
+            if (this.style === false) {
+                return this;
+            }
         }
         
         destroy() {
