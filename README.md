@@ -92,6 +92,26 @@ const myView = new MyView();
 myView.render();
 ```
 
+### Parent Element
+
+At instantiation you can set the reference of the view's parent view element scope:
+
+```
+const MyView = class extends View {
+    constructor(parentElementContainer) {
+        super();
+        this.parentElement = parentElementContainer;
+    }
+    render() {
+        console.log('render my view now');
+    }
+};
+
+const myView = new MyView();
+
+myView.render();
+```
+
 If you do not set an element a div element will be created in memory and not added to the DOM.
 
 ## Event Delegation
@@ -137,3 +157,25 @@ const myView = new MyView();
 full delegation documentation here:
 
 https://craig.is/riding/gators
+
+### Model
+
+At instantiation you can save your data for the view in the model object:
+
+```
+const MyView = class extends View {
+    constructor() {
+        super();
+        this.model = {
+            foo: 'bar'
+        };
+    }
+    render() {
+        console.log('render my view now');
+    }
+};
+
+const myView = new MyView();
+
+myView.render();
+```

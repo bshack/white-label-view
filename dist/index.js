@@ -53,6 +53,10 @@
             function View() {
                 _classCallCheck(this, View);
 
+                // to hold your data
+                this.model = {};
+
+                // this holds the element for this view
                 if (typeof document !== 'undefined') {
                     this.element = document.createElement('div');
                     this.delegated = this.delegate(this.element);
@@ -60,6 +64,9 @@
                     this.element = {};
                     this.delegated = {};
                 }
+
+                // when the view has a parent view element, store it here
+                this.parentElement = null;
             }
 
             _createClass(View, [{
