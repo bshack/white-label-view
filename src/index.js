@@ -6,22 +6,29 @@ import delegated from 'gator';
 
     const View = class {
 
-        constructor() {
+        constructor(settings) {
 
             // to hold your data
-            this.model = {};
-
-            // this holds the element for this view
-            if (typeof document !== 'undefined') {
-                this.element = document.createElement('div');
-                this.delegated = this.delegate(this.element);
+            if (settings && settings.model) {
+                this.model = settings.model;
             } else {
-                this.element = {};
-                this.delegated = {};
+                this.model = {};
             }
 
-            // when the view has a parent view element, store it here
-            this.parentElement = null;
+            // to hold your view
+            if (settings && settings.element) {
+                this.element = settings.element;
+            } else {
+                this.element = document.createElement('div');
+            }
+            this.delegated = this.delegate(this.element);
+
+            // to hold your parent container
+            if (settings && settings.parentElement) {
+                this.parentElement = settings.parentElement;
+            } else {
+                this.parentElement = null;
+            }
 
         }
 
