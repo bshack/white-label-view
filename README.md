@@ -4,10 +4,6 @@
 
 A simple ES6 JS view.
 
-Learn more about ES6 classes here:
-
-https://babeljs.io/docs/learn-es2015/
-
 ## Install
 
 Install the node module:
@@ -24,11 +20,11 @@ import View from 'white-label-view';
 
 ## Extend
 
-example filename: ./view/default.js
+this example's filename: ./view/default.js
 
 ```
 import View from 'white-label-view';
-import myTemplate from '../template/element/button'; //this is a precompiled template in this instance
+import myTemplate from '../template/element/button'; //this is a precompiled handlebars template in this instance
 
 (() => {
     'use strict';
@@ -39,7 +35,7 @@ import myTemplate from '../template/element/button'; //this is a precompiled tem
             this.model = {
                 foo: 'bar
             };
-            this.template = myTemplate; //template function
+            this.template = myTemplate; // template: function(data)
         }
     };
 })();
@@ -82,60 +78,38 @@ const MyView = class extends View {
 };
 ```
 
-### Element
+### this.parentElement, this.model & this.template
 
-At instantiation you can set an element scope for the view:
+At instantiation you can set the parentElement, model and template to be used by the view. When you do it this way two way binding is automaticly setup. 
 
 ```
+import View from 'white-label-view';
+import myModel from '../model/global'; // this is a white-label-model in this instance
+import myTemplate from '../template/element/a'; // precompiled handlebars template: function(data)....
+
 const MyView = class extends View {
     constructor() {
         super();
-        this.element = document.querySelector('a');
-    }
-    render() {
-        console.log('render my view now');
-    }
-};
-
-const myView = new MyView();
-
-myView.render();
-```
-
-### Parent Element
-
-At instantiation you can set the reference of the view's parent view element scope:
-
-```
-const MyView = class extends View {
-    constructor(parentElementContainer) {
-        super();
-        this.parentElement = parentElementContainer;
-    }
-    render() {
-        console.log('render my view now');
+        this.parentElement = document.querySelector('body');
+        this.model = myModel;
+        this.template = myTemplate;
     }
 };
 
 const myView = new MyView();
-
-myView.render();
 ```
-
-If you do not set an element a div element will be created in memory and not added to the DOM.
 
 ## Event Delegation
 
 The Gator event delegation library is bundled in the view and accessible with the 'delegate' method.
 
-By default the delegation scope is the view's element scope:
+By default the delegation scope is the view:
 
 ```
 const MyView = class extends View {
     constructor() {
         super();
         this.element = document.querySelector('ul');
-        this.delegated = this.delegate();
     }
     addListeners() {
          this.delegated.on('click', 'a', function (e) {
@@ -153,39 +127,15 @@ you can also set your own custom scope:
 ```
 const MyView = class extends View {
     addListeners() {
-        const groupDelegate = this.delegate(document.querySelector('ul'));
+        let groupDelegate = this.delegate(this.element.querySelector('ul'));
         groupDelegate.on('click', 'a', function (e) {
             e.preventDefault();
             console.log('anchor in unordered list clicked');
         });
     }
 };
-
-const myView = new MyView();
 ```
 
 full delegation documentation here:
 
 https://craig.is/riding/gators
-
-### Model
-
-At instantiation you can save your data for the view in the model object:
-
-```
-const MyView = class extends View {
-    constructor() {
-        super();
-        this.model = {
-            foo: 'bar'
-        };
-    }
-    render() {
-        console.log('render my view now');
-    }
-};
-
-const myView = new MyView();
-
-myView.render();
-```
