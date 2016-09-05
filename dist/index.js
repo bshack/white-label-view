@@ -21,6 +21,12 @@
         };
     }
 
+    var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
+        return typeof obj;
+    } : function (obj) {
+        return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj;
+    };
+
     function _classCallCheck(instance, Constructor) {
         if (!(instance instanceof Constructor)) {
             throw new TypeError("Cannot call a class as a function");
@@ -50,53 +56,85 @@
         'use strict';
 
         var View = function () {
-            function View() {
+            function View(settings) {
                 _classCallCheck(this, View);
 
-                // to hold your data
-                this.model = {};
-
-                // this holds the element for this view
-                if (typeof document !== 'undefined') {
-                    this.element = document.createElement('div');
-                    this.delegated = this.delegate(this.element);
+                if (settings && _typeof(settings.parentElement) === 'object') {
+                    this.parentElement = settings.parentElement;
                 } else {
-                    this.element = {};
-                    this.delegated = {};
+                    this.parentElement = undefined;
                 }
 
-                // when the view has a parent view element, store it here
-                this.parentElement = null;
+                if (settings && typeof settings.template === 'function') {
+                    this.template = settings.template;
+                } else {
+                    this.template = undefined;
+                }
+
+                if (settings && _typeof(settings.model) === 'object') {
+                    this.model = settings.model;
+                } else {
+                    this.model = undefined;
+                }
+
+                if (settings && _typeof(settings.element) === 'object') {
+                    this.element = settings.element;
+                } else {
+                    this.element = document.createElement('div');
+                }
             }
 
             _createClass(View, [{
                 key: 'initialize',
                 value: function initialize() {
-                    //setup the view
-                    return this;
-                }
-            }, {
-                key: 'template',
-                value: function template() {
-                    //holds the client side template
-                    return this;
-                }
-            }, {
-                key: 'render',
-                value: function render() {
-                    //render html changes
-                    return this;
-                }
-            }, {
-                key: 'addListeners',
-                value: function addListeners() {
-                    //bind events
+
+                    this.render();
+
                     return this;
                 }
             }, {
                 key: 'destroy',
                 value: function destroy() {
-                    //tear down the view
+
+                    //remove element from dom
+                    if (_typeof(this.parentElement) === 'object' && this.parentElement.contains(this.element)) {
+                        this.parentElement.removeChild(this.element);
+                    }
+
+                    // remove all the events from the dom
+                    this.removeListeners();
+
+                    // remove all the events from the model
+                    this.destroyTwoWayBinding();
+
+                    // reset object to div
+                    this.element = document.createElement('div');
+
+                    return this;
+                }
+            }, {
+                key: 'initializeTwoWayBinding',
+                value: function initializeTwoWayBinding() {
+                    var _this = this;
+
+                    if (_typeof(this.model) === 'object' && typeof this.model.on === 'function') {
+                        this.model.on('change', function () {
+                            _this.render();
+                        });
+                    }
+                }
+            }, {
+                key: 'destroyTwoWayBinding',
+                value: function destroyTwoWayBinding() {
+
+                    if (this.model && typeof this.model.removeAllListeners === 'function') {
+                        this.model.removeAllListeners('change');
+                    }
+                }
+            }, {
+                key: 'addListeners',
+                value: function addListeners() {
+                    //bind events
                     return this;
                 }
             }, {
@@ -108,7 +146,51 @@
             }, {
                 key: 'delegate',
                 value: function delegate(scope) {
+                    //use gator delegation libary
                     return (0, _gator2.default)(scope || this.element);
+                }
+            }, {
+                key: 'render',
+                value: function render() {
+
+                    var newElement = void 0;
+
+                    if (typeof this.template === 'function') {
+
+                        if (this.model && typeof this.model.get === 'function') {
+                            newElement = this.template(this.model.get() || {});
+                        } else if (_typeof(this.model) === 'object') {
+                            newElement = this.template(this.model);
+                        } else {
+                            newElement = this.template({});
+                        }
+
+                        if (_typeof(this.parentElement) === 'object' && (typeof newElement === 'undefined' ? 'undefined' : _typeof(newElement)) === 'object') {
+
+                            //render html changes
+                            this.removeListeners();
+                            this.destroyTwoWayBinding();
+
+                            if (this.parentElement.contains(this.element)) {
+
+                                var oldDOMElement = this.element;
+                                this.element = newElement;
+                                this.delegated = this.delegate();
+                                this.addListeners();
+                                this.initializeTwoWayBinding();
+                                this.parentElement.replaceChild(this.element, oldDOMElement);
+                            } else {
+
+                                this.element = newElement;
+                                this.delegated = this.delegate();
+                                this.addListeners();
+                                this.initializeTwoWayBinding();
+                                this.parentElement.appendChild(this.element);
+                            }
+                        }
+                    }
+
+                    return this;
                 }
             }]);
 

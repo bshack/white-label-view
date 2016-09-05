@@ -8,52 +8,80 @@ import delegated from 'gator';
 
         constructor(settings) {
 
-            // to hold your data
-            if (settings && settings.model) {
-                this.model = settings.model;
+            if (settings && typeof settings.parentElement === 'object') {
+                this.parentElement = settings.parentElement;
             } else {
-                this.model = {};
+                this.parentElement = undefined;
             }
 
-            // to hold your view
-            if (settings && settings.element) {
+            if (settings && typeof settings.template === 'function') {
+                this.template = settings.template;
+            } else {
+                this.template = undefined;
+            }
+
+            if (settings && typeof settings.model === 'object') {
+                this.model = settings.model;
+            } else {
+                this.model = undefined;
+            }
+
+            if (settings && typeof settings.element === 'object') {
                 this.element = settings.element;
             } else {
                 this.element = document.createElement('div');
-            }
-            this.delegated = this.delegate(this.element);
-
-            // to hold your parent container
-            if (settings && settings.parentElement) {
-                this.parentElement = settings.parentElement;
-            } else {
-                this.parentElement = null;
             }
 
         }
 
         initialize() {
-            //setup the view
+
+            this.render();
+
             return this;
+
         }
 
-        template() {
-            //holds the client side template
+        destroy() {
+
+            //remove element from dom
+            if (typeof this.parentElement === 'object' && this.parentElement.contains(this.element)) {
+                this.parentElement.removeChild(this.element)
+            }
+
+            // remove all the events from the dom
+            this.removeListeners();
+
+            // remove all the events from the model
+            this.destroyTwoWayBinding();
+
+            // reset object to div
+            this.element = document.createElement('div');
+
             return this;
+
         }
 
-        render() {
-            //render html changes
-            return this;
+        initializeTwoWayBinding() {
+
+            if (typeof this.model === 'object' && typeof this.model.on === 'function') {
+                this.model.on('change', () => {
+                    this.render();
+                });
+            }
+
+        }
+
+        destroyTwoWayBinding() {
+
+            if (this.model && typeof this.model.removeAllListeners === 'function') {
+                this.model.removeAllListeners('change');
+            }
+
         }
 
         addListeners() {
             //bind events
-            return this;
-        }
-
-        destroy() {
-            //tear down the view
             return this;
         }
 
@@ -63,7 +91,56 @@ import delegated from 'gator';
         }
 
         delegate(scope) {
+            //use gator delegation libary
             return delegated(scope || this.element);
+
+        }
+
+        render() {
+
+            let newElement;
+
+            if (typeof this.template === 'function') {
+
+                if (this.model && typeof this.model.get === 'function') {
+                    newElement = this.template(this.model.get() || {});
+                } else if (typeof this.model === 'object') {
+                    newElement = this.template(this.model);
+                } else {
+                    newElement = this.template({});
+                }
+
+                if (typeof this.parentElement === 'object' && typeof newElement === 'object') {
+
+                    //render html changes
+                    this.removeListeners();
+                    this.destroyTwoWayBinding();
+
+                    if (this.parentElement.contains(this.element)) {
+
+                        let oldDOMElement = this.element;
+                        this.element = newElement;
+                        this.delegated = this.delegate();
+                        this.addListeners();
+                        this.initializeTwoWayBinding();
+                        this.parentElement.replaceChild(this.element, oldDOMElement);
+
+                    } else {
+
+                        this.element = newElement;
+                        this.delegated = this.delegate();
+                        this.addListeners();
+                        this.initializeTwoWayBinding();
+                        this.parentElement.appendChild(this.element);
+
+                    }
+
+                }
+
+            }
+
+            return this;
+
         }
 
     };
