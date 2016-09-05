@@ -84,7 +84,7 @@ At instantiation you can set the parentElement, model and template to be used by
 
 ```
 import View from 'white-label-view';
-import myModel from '../model/global'; // this is a white-label-model in this instance
+import myModel from '../model/global'; // this is a white-label-model in this instance that emits a 'change' event
 import myTemplate from '../template/element/a'; // precompiled handlebars template: function(data)....
 
 const MyView = class extends View {
@@ -93,6 +93,15 @@ const MyView = class extends View {
         this.parentElement = document.querySelector('body');
         this.model = myModel;
         this.template = myTemplate;
+    },
+    addListeners() {
+        this.delegated.on('click', 'a', function (e) {
+            e.preventDefault();
+            console.log('anchor clicked');
+        });
+    }
+    removeListners() {
+         this.delegated.off('click', 'a');
     }
 };
 
@@ -139,3 +148,19 @@ const MyView = class extends View {
 full delegation documentation here:
 
 https://craig.is/riding/gators
+
+## Two Way Binding
+
+When you define a model, parentElement and template in the constructor two way binding will automaticly be enabled.
+
+To manually enable or disable two way binding as needed you can call this:
+
+```
+myView.initializeTwoWayBinding();
+```
+
+or:
+
+```
+myView.destroyTwoWayBinding();
+```
