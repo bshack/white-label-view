@@ -22,7 +22,7 @@ import View from 'white-label-view';
 
 this example's filename: ./view/default.js
 
-This is the simplelist example of creating a view with two what binding automaticly enabled.
+This is the simplelist example of creating a view with two way binding automaticly enabled.
 
 ```
 import View from 'white-label-view';
