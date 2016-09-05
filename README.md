@@ -24,20 +24,34 @@ import View from 'white-label-view';
 
 ## Extend
 
+example filename: ./view/default.js
+
 ```
-const MyView = class extends View {
-    someGreatFeature() {
-        console.log('this is great!');
-    }
-};
+import View from 'white-label-view';
+import myTemplate from '../template/element/button'; //this is a precompiled template in this instance
+
+(() => {
+    'use strict';
+    module.exports = class extends View {
+        constructor() {
+            super();
+            this.parentElement = document.querySelector('body');
+            this.model = {
+                foo: 'bar
+            };
+            this.template = myTemplate; //template function
+        }
+    };
+})();
+
 ```
 
 ## Instantiate
 
 ```
-const myView = new MyView();
+import ViewDefault from './view/default';
 
-myView.someGreatFeature();
+const viewDefault = new ViewDefault();
 ```
 
 ## Basic Structure
@@ -49,24 +63,20 @@ const MyView = class extends View {
         //setup the view
         return this;
     }
-    template() {
-        //holds the client side template
-        return this;
-    }
-    render() {
-        //render html changes
+    destroy() {
+        //tear down the view
         return this;
     }
     addListeners() {
         //bind events
         return this;
     }
-    destroy() {
-        //tear down the view
-        return this;
-    }
     removeListeners() {
         //unbind events
+        return this;
+    }
+    render() {
+        //render html changes
         return this;
     }
 };
