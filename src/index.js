@@ -103,11 +103,17 @@ import delegated from 'gator';
             if (typeof this.template === 'function') {
 
                 if (this.model && typeof this.model.get === 'function') {
-                    newElement = this.template(this.model.get() || {});
+                    newElement = this.template(this.model.get());
                 } else if (typeof this.model === 'object') {
                     newElement = this.template(this.model);
                 } else {
                     newElement = this.template({});
+                }
+
+                // if the template returns a string make it a dom object
+                if (typeof newElement === 'string') {
+                    newElement = new DOMParser().parseFromString(newElement.trim(), 'text/html')
+                        .body.firstChild.cloneNode(true);
                 }
 
                 if (typeof this.parentElement === 'object' && typeof newElement === 'object') {
