@@ -22,6 +22,8 @@ import View from 'white-label-view';
 
 this example's filename: ./view/default.js
 
+This is the simplelist example of creating a view with two what binding automaticly enabled.
+
 ```
 import View from 'white-label-view';
 import myModel from '../model/global'; // this is a white-label-model in this instance that emits a 'change' event
@@ -50,17 +52,20 @@ import myTemplate from '../template/element/a'; // precompiled handlebars templa
 
 ```
 
-## Instantiate
+## Instantiate and Initialize
 
 ```
 import ViewDefault from './view/default';
 
 const viewDefault = new ViewDefault();
+
+viewDefault.initialize();
 ```
 
 ## Basic Structure
 
-This view provides a basic structure to build off of to promote consistancy through out the application. In general is it is a good idea to follow this structure when possible.
+This view provides a basic structure to extend off of to promote consistancy through out the application. In general is it is a good idea to follow this structure when possible. NOTE: redefining these methods may destroy any default functionality of the view which you would have do manually if you wish to restore.
+
 ```
 const MyView = class extends View {
     initialize() {
