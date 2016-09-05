@@ -131,7 +131,7 @@ full delegation documentation here:
 
 https://craig.is/riding/gators
 
-## Toggling Two Way Binding On and Off
+## Manually Toggling Two Way Binding On and Off
 
 When you define a model, parentElement and template in the constructor two way binding will automaticly be enabled. To manually enable or disable two way binding as needed you can call these:
 
