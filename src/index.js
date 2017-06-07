@@ -31,6 +31,8 @@ import delegated from 'gator';
             } else {
                 this.element = document.createElement('div');
             }
+            
+            this.delegated = this.delegate(this.element);
 
         }
 
