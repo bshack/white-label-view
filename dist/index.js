@@ -26,6 +26,7 @@
 
     var View = /*#__PURE__*/function () {
       function View(settings) {
+        var _this = this;
         _classCallCheck(this, View);
         if (settings && _typeof(settings.parentElement) === 'object') {
           this.parentElement = settings.parentElement;
@@ -47,6 +48,12 @@
         } else {
           this.element = document.createElement('div');
         }
+
+        // Keep a stable callback so this view can remove only its own model listener.
+        this.modelChangeHandler = function () {
+          return _this.render();
+        };
+        this.renderedTemplate = undefined;
         this.delegated = this.delegate(this.element);
       }
       return _createClass(View, [{
@@ -71,23 +78,21 @@
 
           // reset object to div
           this.element = document.createElement('div');
+          this.renderedTemplate = undefined;
           return this;
         }
       }, {
         key: "initializeTwoWayBinding",
         value: function initializeTwoWayBinding() {
-          var _this = this;
           if (_typeof(this.model) === 'object' && typeof this.model.on === 'function') {
-            this.model.on('change', function () {
-              _this.render();
-            });
+            this.model.on('change', this.modelChangeHandler);
           }
         }
       }, {
         key: "destroyTwoWayBinding",
         value: function destroyTwoWayBinding() {
-          if (this.model && typeof this.model.removeAllListeners === 'function') {
-            this.model.removeAllListeners('change');
+          if (this.model && typeof this.model.removeListener === 'function') {
+            this.model.removeListener('change', this.modelChangeHandler);
           }
         }
       }, {
@@ -123,9 +128,19 @@
 
             // if the template returns a string make it a dom object
             if (typeof newElement === 'string') {
+              if (newElement === this.renderedTemplate && _typeof(this.parentElement) === 'object' && this.parentElement.contains(this.element)) {
+                return this;
+              }
+              this.renderedTemplate = newElement;
               newElement = new DOMParser().parseFromString(newElement.trim(), 'text/html').body.firstChild.cloneNode(true);
+            } else {
+              this.renderedTemplate = undefined;
             }
             if (_typeof(this.parentElement) === 'object' && _typeof(newElement) === 'object') {
+              if (this.parentElement.contains(this.element) && typeof this.element.isEqualNode === 'function' && this.element.isEqualNode(newElement)) {
+                return this;
+              }
+
               //render html changes
               this.removeListeners();
               this.destroyTwoWayBinding();
