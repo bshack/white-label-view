@@ -90,7 +90,7 @@ export default class MenuView extends View {
 }
 ```
 
-Use matching `addListeners()` and `removeListeners()` implementations because rendering can replace the root element. Stable callback references make it possible to remove exactly the listener that was added.
+Use matching `addListeners()` and `removeListeners()` implementations because rendering can replace the root element. Stable callback references make it possible to remove exactly the listener that was added. Delegation uses native `addEventListener()` and `closest()` APIs and does not require a runtime dependency.
 
 ## Manual model binding
 
@@ -121,7 +121,7 @@ The binding listens in one direction: model changes trigger view rendering. Form
 | `destroy()` | Removes the element, delegated events, and model listener. |
 | `addListeners()` | Extension hook called after a rendered element is installed. |
 | `removeListeners()` | Extension hook called before replacement or destruction. |
-| `delegate(scope)` | Creates a Gator delegated-event instance for `scope` or the view element. |
+| `delegate(scope)` | Creates a native delegated-event instance for `scope` or the view element. |
 | `initializeTwoWayBinding()` | Adds one model `change` listener. |
 | `destroyTwoWayBinding()` | Removes this view's model listener without removing other subscribers. |
 
