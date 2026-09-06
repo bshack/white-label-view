@@ -1,149 +1,137 @@
 # white-label-view
 
-[![Build Status](https://travis-ci.org/bshack/white-label-view.svg?branch=master)](https://travis-ci.org/bshack/white-label-view)
+`white-label-view` is a small browser view class for rendering a template into the DOM, responding to model changes, and managing delegated DOM events.
 
-A simple ES6 JS view.
+It is intentionally unopinionated: your template can be any function that returns a DOM element or an HTML string, and your model can be a plain object or an event-emitting object such as [`white-label-model`](https://github.com/bshack/white-label-model).
 
-## Install
+## Requirements
 
-Install the node module:
+- Node.js `^22.18.0` or `>=24.11.0` for installation and development
+- A browser environment with `document`, `DOMParser`, and standard DOM APIs at runtime
 
+## Install and import
+
+```sh
+npm install white-label-view
 ```
-npm install white-label-view --save
-```
 
-## Import
-
-```
+```js
 import View from 'white-label-view';
 ```
 
-## Extend
+## Complete example
 
-this example's filename: ./view/default.js
+The constructor accepts `parentElement`, `element`, `model`, and `template`. Calling `initialize()` renders the view.
 
-This is the simplelist example of creating a view with two way binding automaticly enabled.
-
-```
+```js
 import View from 'white-label-view';
-import myModel from '../model/global'; // this is a white-label-model in this instance that emits a 'change' event
-import myTemplate from '../template/element/a'; // precompiled handlebars template: function(data)....
+import {Model} from 'white-label-model';
 
-(() => {
-    'use strict';
-    module.exports = class extends View {
-        constructor() {
-            super();
-            this.parentElement = document.querySelector('body');
-            this.model = myModel;
-            this.template = myTemplate;
-        }
-        addListeners() {
-           this.delegated.on('click', 'a', function (e) {
-               e.preventDefault();
-               console.log('anchor clicked');
-            });
-        }
-        removeListners() {
-             this.delegated.off('click', 'a');
-        }
-    };
-})();
+const model = new Model({name: 'Ada'});
 
-```
-
-## Instantiate and Initialize
-
-```
-import ViewDefault from './view/default';
-
-const viewDefault = new ViewDefault();
-
-viewDefault.initialize();
-```
-
-## Basic Structure
-
-This view provides a basic structure to extend off of to promote consistancy through out the application. In general is it is a good idea to follow this structure when possible. NOTE: redefining these methods may destroy any default functionality of the view which you would have do manually if you wish to restore.
-
-```
-const MyView = class extends View {
-    initialize() {
-        //setup the view
-        return this;
+const profileView = new View({
+    parentElement: document.querySelector('main'),
+    model,
+    template(data) {
+        return `<section class="profile"><h1>Hello, ${data.name}</h1></section>`;
     }
-    destroy() {
-        //tear down the view
-        return this;
+});
+
+profileView.initialize();
+
+// The model emits "change", so the view renders the new value automatically.
+model.update({name: 'Grace'});
+
+// Remove the DOM element and listeners when the view is no longer needed.
+profileView.destroy();
+```
+
+## Rendering lifecycle
+
+`initialize()` calls `render()`. During a successful render, the view:
+
+1. Reads model data with `model.get()` when that method exists; otherwise it passes the model object directly to the template.
+2. Converts a returned HTML string into a DOM element.
+3. Appends the element on the first render or replaces the previous element later.
+4. Recreates delegated event handling for the new element.
+5. Subscribes to the model's `change` event when the model provides `on()`.
+
+If a template produces the same HTML string as the previous render, the view skips DOM parsing and replacement. Repeated binding initialization is also safe: it does not add duplicate model listeners.
+
+The template should return one root element. If it returns an HTML string, leading and trailing whitespace is trimmed before the first root node is selected.
+
+## Create a reusable view
+
+Extend `View` when the component needs custom DOM events:
+
+```js
+import View from 'white-label-view';
+
+export default class MenuView extends View {
+    constructor(settings) {
+        super(settings);
+        this.handleLinkClick = this.handleLinkClick.bind(this);
     }
+
     addListeners() {
-        //bind events
+        this.delegated.on('click', 'a', this.handleLinkClick);
         return this;
     }
+
     removeListeners() {
-        //unbind events
+        this.delegated.off('click', 'a', this.handleLinkClick);
         return this;
     }
-    render() {
-        //render html changes
-        return this;
+
+    handleLinkClick(event) {
+        event.preventDefault();
+        console.log(event.target.href);
     }
-};
+}
 ```
 
-### this.parentElement, this.model & this.template
+Use matching `addListeners()` and `removeListeners()` implementations because rendering can replace the root element. Stable callback references make it possible to remove exactly the listener that was added.
 
-At instantiation you can set the parentElement, model and template to be used by the view. When you do it this way two way binding is automaticly setup. Two way binding requires all three of these be defined to work.
+## Manual model binding
 
-## Event Delegation
+Automatic binding occurs after the view successfully renders into `parentElement`. You can also control it directly:
 
-The Gator event delegation library is bundled in the view and accessible with the 'delegate' method.
-
-By default the delegation scope is the view:
-
-```
-const MyView = class extends View {
-    constructor() {
-        super();
-        this.element = document.querySelector('ul');
-    }
-    addListeners() {
-         this.delegated.on('click', 'a', function (e) {
-            e.preventDefault();
-            console.log('anchor in unordered list clicked');
-        });
-    }
-};
-
-const myView = new MyView();
+```js
+profileView.initializeTwoWayBinding();
+profileView.destroyTwoWayBinding();
 ```
 
-you can also set your own custom scope:
+The binding listens in one direction: model changes trigger view rendering. Form input is not written back to the model automatically; application code must handle that in a DOM event listener.
 
+## Constructor settings
+
+| Setting | Meaning |
+| --- | --- |
+| `parentElement` | DOM node that receives or contains the view's root element. |
+| `element` | Existing root DOM node. Defaults to a new `div`. |
+| `model` | Plain data object or an object with `get()`, `on()`, and `removeListener()` methods. |
+| `template` | Function receiving model data and returning a DOM element or HTML string. |
+
+## Public methods
+
+| Method | Behavior |
+| --- | --- |
+| `initialize()` | Renders the current template and returns the view. |
+| `render()` | Updates the DOM when a valid template and parent are available. |
+| `destroy()` | Removes the element, delegated events, and model listener. |
+| `addListeners()` | Extension hook called after a rendered element is installed. |
+| `removeListeners()` | Extension hook called before replacement or destruction. |
+| `delegate(scope)` | Creates a Gator delegated-event instance for `scope` or the view element. |
+| `initializeTwoWayBinding()` | Adds one model `change` listener. |
+| `destroyTwoWayBinding()` | Removes this view's model listener without removing other subscribers. |
+
+## Development
+
+```sh
+npm ci
+npm run build
+npm test
+npm run audit
 ```
-const MyView = class extends View {
-    addListeners() {
-        let groupDelegate = this.delegate(this.element.querySelector('ul'));
-        groupDelegate.on('click', 'a', function (e) {
-            e.preventDefault();
-            console.log('anchor in unordered list clicked');
-        });
-    }
-};
-```
 
-full delegation documentation here:
-
-https://craig.is/riding/gators
-
-## Manually Toggling Two Way Binding On and Off
-
-When you define a model, parentElement and template in the constructor two way binding will automaticly be enabled. To manually enable or disable two way binding as needed you can call these:
-
-```
-myView.initializeTwoWayBinding();
-```
-
-```
-myView.destroyTwoWayBinding();
-```
+The npm package publishes the compiled `dist` file and this README.
