@@ -34,6 +34,7 @@ import delegated from 'gator';
 
             // Keep a stable callback so this view can remove only its own model listener.
             this.modelChangeHandler = () => this.render();
+            this.twoWayBindingInitialized = false;
             this.renderedTemplate = undefined;
             this.delegated = this.delegate(this.element);
 
@@ -70,17 +71,27 @@ import delegated from 'gator';
 
         initializeTwoWayBinding() {
 
-            if (typeof this.model === 'object' && typeof this.model.on === 'function') {
+            if (
+                !this.twoWayBindingInitialized &&
+                typeof this.model === 'object' &&
+                typeof this.model.on === 'function'
+            ) {
                 this.model.on('change', this.modelChangeHandler);
+                this.twoWayBindingInitialized = true;
             }
 
         }
 
         destroyTwoWayBinding() {
 
-            if (this.model && typeof this.model.removeListener === 'function') {
+            if (
+                this.twoWayBindingInitialized &&
+                this.model &&
+                typeof this.model.removeListener === 'function'
+            ) {
                 this.model.removeListener('change', this.modelChangeHandler);
             }
+            this.twoWayBindingInitialized = false;
 
         }
 
