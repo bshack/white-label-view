@@ -1,6 +1,6 @@
 {
   "name": "white-label-view",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "A simple ES6 JS view.",
   "main": "dist/index.js",
   "files": [
@@ -49,6 +49,7 @@
   "devDependencies": {
     "@types/node": "24.13.3",
     "c8": "12.0.0",
+    "eta": "4.6.0",
     "jsdom": "30.0.1",
     "typescript": "7.0.2"
   },

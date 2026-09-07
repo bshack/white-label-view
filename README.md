@@ -25,16 +25,19 @@ The constructor accepts `parentElement`, `element`, `model`, and `template`. Cal
 
 ```js
 import View from 'white-label-view';
+import {Eta} from 'eta/core';
 import {Model} from 'white-label-model';
 
 const model = new Model({name: 'Ada'});
+const eta = new Eta({autoEscape: true});
 
 const profileView = new View({
     parentElement: document.querySelector('main'),
     model,
-    template(data) {
-        return `<section class="profile"><h1>Hello, ${data.name}</h1></section>`;
-    }
+    template: (data) => eta.renderString(
+        '<section class="profile"><h1>Hello, <%= it.name %></h1></section>',
+        data
+    )
 });
 
 profileView.initialize();
@@ -45,6 +48,12 @@ model.update({name: 'Grace'});
 // Remove the DOM element and listeners when the view is no longer needed.
 profileView.destroy();
 ```
+
+Eta is intentionally not a runtime dependency of `white-label-view`; the view accepts any function returning a DOM node or single-root HTML string. Applications that choose Eta should install it directly and use `eta/core` for browser bundles. Eta escapes `<%=` values by default; never compile user-controlled template source.
+
+## Accessibility and indexability
+
+The view lifecycle does not make rendered markup conformant by itself. Templates must use semantic HTML, accessible names and status behavior, keyboard-operable controls, visible/unobscured focus, sufficient contrast, reflow, and applicable WCAG 2.2 Level AA requirements. Prefer updating a stable live region over replacing focused interactive elements. Public primary content should be rendered into the initial server or static HTML; use this class for progressive enhancement so search crawlers and no-JavaScript users retain the content and crawlable links.
 
 ## Rendering lifecycle
 
