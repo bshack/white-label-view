@@ -1,20 +1,50 @@
 (function (global, factory) {
   if (typeof define === "function" && define.amd) {
-    define(["gator"], factory);
+    define([], factory);
   } else if (typeof exports !== "undefined") {
-    factory(require("gator"));
+    factory();
   } else {
     var mod = {
       exports: {}
     };
-    factory(global.gator);
+    factory();
     global.index = mod.exports;
   }
-})(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : this, function (_gator) {
+})(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  _gator = _interopRequireDefault(_gator);
-  function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+  class DelegatedEvents {
+    constructor(scope) {
+      this.scope = scope;
+      this.listeners = [];
+    }
+    on(type, selector, callback) {
+      const listener = event => {
+        const target = event.target && typeof event.target.closest === 'function' ? event.target.closest(selector) : null;
+        if (target && (target === this.scope || this.scope.contains(target))) {
+          callback.call(target, event);
+        }
+      };
+      this.scope.addEventListener(type, listener);
+      this.listeners.push({
+        callback,
+        listener,
+        selector,
+        type
+      });
+      return this;
+    }
+    off(type, selector, callback) {
+      this.listeners = this.listeners.filter(registered => {
+        const matches = registered.type === type && (!selector || registered.selector === selector) && (!callback || registered.callback === callback);
+        if (matches) {
+          this.scope.removeEventListener(type, registered.listener);
+        }
+        return !matches;
+      });
+      return this;
+    }
+  }
   (() => {
     'use strict';
 
@@ -43,6 +73,7 @@
 
         // Keep a stable callback so this view can remove only its own model listener.
         this.modelChangeHandler = () => this.render();
+        this.twoWayBindingInitialized = false;
         this.renderedTemplate = undefined;
         this.delegated = this.delegate(this.element);
       }
@@ -68,14 +99,16 @@
         return this;
       }
       initializeTwoWayBinding() {
-        if (typeof this.model === 'object' && typeof this.model.on === 'function') {
+        if (!this.twoWayBindingInitialized && typeof this.model === 'object' && typeof this.model.on === 'function') {
           this.model.on('change', this.modelChangeHandler);
+          this.twoWayBindingInitialized = true;
         }
       }
       destroyTwoWayBinding() {
-        if (this.model && typeof this.model.removeListener === 'function') {
+        if (this.twoWayBindingInitialized && this.model && typeof this.model.removeListener === 'function') {
           this.model.removeListener('change', this.modelChangeHandler);
         }
+        this.twoWayBindingInitialized = false;
       }
       addListeners() {
         //bind events
@@ -86,8 +119,7 @@
         return this;
       }
       delegate(scope) {
-        //use gator delegation libary
-        return (0, _gator.default)(scope || this.element);
+        return new DelegatedEvents(scope || this.element);
       }
       render() {
         let newElement;

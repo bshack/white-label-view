@@ -1,4 +1,38 @@
-import delegated from 'gator';
+class DelegatedEvents {
+
+    constructor(scope) {
+        this.scope = scope;
+        this.listeners = [];
+    }
+
+    on(type, selector, callback) {
+        const listener = (event) => {
+            const target = event.target && typeof event.target.closest === 'function'
+                ? event.target.closest(selector)
+                : null;
+            if (target && (target === this.scope || this.scope.contains(target))) {
+                callback.call(target, event);
+            }
+        };
+        this.scope.addEventListener(type, listener);
+        this.listeners.push({callback, listener, selector, type});
+        return this;
+    }
+
+    off(type, selector, callback) {
+        this.listeners = this.listeners.filter((registered) => {
+            const matches = registered.type === type &&
+                (!selector || registered.selector === selector) &&
+                (!callback || registered.callback === callback);
+            if (matches) {
+                this.scope.removeEventListener(type, registered.listener);
+            }
+            return !matches;
+        });
+        return this;
+    }
+
+}
 
 (() => {
 
@@ -34,6 +68,7 @@ import delegated from 'gator';
 
             // Keep a stable callback so this view can remove only its own model listener.
             this.modelChangeHandler = () => this.render();
+            this.twoWayBindingInitialized = false;
             this.renderedTemplate = undefined;
             this.delegated = this.delegate(this.element);
 
@@ -70,17 +105,27 @@ import delegated from 'gator';
 
         initializeTwoWayBinding() {
 
-            if (typeof this.model === 'object' && typeof this.model.on === 'function') {
+            if (
+                !this.twoWayBindingInitialized &&
+                typeof this.model === 'object' &&
+                typeof this.model.on === 'function'
+            ) {
                 this.model.on('change', this.modelChangeHandler);
+                this.twoWayBindingInitialized = true;
             }
 
         }
 
         destroyTwoWayBinding() {
 
-            if (this.model && typeof this.model.removeListener === 'function') {
+            if (
+                this.twoWayBindingInitialized &&
+                this.model &&
+                typeof this.model.removeListener === 'function'
+            ) {
                 this.model.removeListener('change', this.modelChangeHandler);
             }
+            this.twoWayBindingInitialized = false;
 
         }
 
@@ -95,8 +140,7 @@ import delegated from 'gator';
         }
 
         delegate(scope) {
-            //use gator delegation libary
-            return delegated(scope || this.element);
+            return new DelegatedEvents(scope || this.element);
 
         }
 

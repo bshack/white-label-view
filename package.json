@@ -1,8 +1,9 @@
 {
   "name": "white-label-view",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "A simple ES6 JS view.",
   "main": "dist/index.js",
+  "files": ["dist", "README.md"],
   "engines": {
     "node": "^22.18.0 || >=24.11.0",
     "npm": ">=10.0"
@@ -36,9 +37,6 @@
     "build": "babel src/index.js --out-file dist/index.js",
     "test": "node --test test/*.test.js",
     "audit": "npm audit --audit-level=high"
-  },
-  "dependencies": {
-    "gator": "1.2.4"
   },
   "devDependencies": {
     "@babel/cli": "8.0.4",
