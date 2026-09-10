@@ -2,248 +2,277 @@
 /** Native event delegation scoped to a view root. */
 class DelegatedEvents {
     scope;
-    listeners;
-    /**
-     * Create an instance with its own state and listener references.
-     * @param scope - DOM root that bounds event delegation or navigation.
-     */
+    listeners = [];
     constructor(scope) {
         this.scope = scope;
-        this.listeners = [];
     }
-    /**
-     * Delegate matching events within the root and preserve the matching element as callback context.
-     * @param type - DOM event name.
-     * @param selector - CSS selector used to match delegated targets.
-     * @param callback - Listener to invoke or remove.
-     * @returns This delegation registry for chaining.
-     */
-    on(type, selector, callback) {
-        const listener = (event) => {
-            const target = event.target && typeof event.target.closest === 'function'
-                ? event.target.closest(selector)
-                : null;
-            if (target && (target === this.scope || this.scope.contains(target))) {
-                callback.call(target, event);
+    /** Register a matching listener. once is consumed only by a matching event. */
+    on(type, selector, callback, options = {}) {
+        const settings = typeof options === 'boolean' ? { capture: options } : options;
+        if (settings.signal?.aborted)
+            return this;
+        const once = Boolean(settings.once);
+        const registered = {
+            type, selector, callback, capture: Boolean(settings.capture), signal: settings.signal,
+            abort: () => this.remove(registered),
+            listener: (event) => {
+                const target = event.target && typeof event.target.closest === 'function'
+                    ? event.target.closest(selector) : null;
+                if (target && (target === this.scope || this.scope.contains(target))) {
+                    // Remove before invocation so recursive dispatch cannot invoke a once listener twice.
+                    if (once)
+                        this.remove(registered);
+                    callback.call(target, event);
+                }
             }
         };
-        this.scope.addEventListener(type, listener);
-        this.listeners.push({ callback, listener, selector, type });
+        this.scope.addEventListener(type, registered.listener, { capture: registered.capture, passive: settings.passive });
+        this.listeners.push(registered);
+        registered.signal?.addEventListener('abort', registered.abort, { once: true });
         return this;
     }
-    /**
-     * Remove registrations matching the supplied event, optional selector, and optional callback.
-     * @param type - DOM event name.
-     * @param selector - CSS selector used to match delegated targets.
-     * @param callback - Listener to invoke or remove.
-     * @returns This delegation registry after matching listeners are removed.
-     */
-    off(type, selector, callback) {
-        this.listeners = this.listeners.filter((registered) => {
-            const matches = registered.type === type &&
-                (!selector || registered.selector === selector) &&
-                (!callback || registered.callback === callback);
-            if (matches) {
-                this.scope.removeEventListener(type, registered.listener);
-            }
+    /** Remove matching registrations; optionally restrict removal to a capture phase. */
+    off(type, selector, callback, options) {
+        const capture = typeof options === 'boolean' ? options : options?.capture;
+        this.listeners = this.listeners.filter(registered => {
+            const matches = registered.type === type && (!selector || registered.selector === selector) &&
+                (!callback || registered.callback === callback) &&
+                (capture === undefined || registered.capture === capture);
+            if (matches)
+                this.detach(registered);
             return !matches;
         });
         return this;
     }
-    /** Remove all listeners registered through this owned registry. */
+    /** Remove both native and abort listeners so external controllers do not retain this registry. */
+    remove(registered) {
+        this.detach(registered);
+        this.listeners = this.listeners.filter(item => item !== registered);
+    }
+    detach(registered) {
+        this.scope.removeEventListener(registered.type, registered.listener, registered.capture);
+        registered.signal?.removeEventListener('abort', registered.abort);
+    }
+    /** Remove every registration in one pass, including its abort callback. */
     clear() {
-        for (const registered of this.listeners) {
-            this.scope.removeEventListener(registered.type, registered.listener);
-        }
-        this.listeners.length = 0;
+        const registrations = this.listeners;
+        this.listeners = [];
+        for (const registered of registrations)
+            this.detach(registered);
         return this;
     }
 }
-/** Render a model through a template and release owned listeners on teardown. */
+/** Render a model through a template and release owned listeners and child views on teardown. */
 class View {
     parentElement;
     element;
-    model;
-    template;
-    update;
+    /** Override to update the attached root in place; false uses the template fallback. */
+    update(_element, _data) { return false; }
+    batchUpdates;
     modelChangeHandler;
-    twoWayBindingInitialized;
+    twoWayBindingInitialized = false;
     renderedTemplate;
     delegated;
-    /**
-     * Create an instance with its own state and listener references.
-     * @param settings - Optional parent, element, model, and template settings.
-     */
+    currentModel;
+    boundModel;
+    mountedElement;
+    pendingFrame;
+    frameWindow;
+    children = new Set();
+    owner;
     constructor(settings) {
-        if (settings && typeof settings.parentElement === 'object') {
-            this.parentElement = settings.parentElement;
-        }
-        else {
-            this.parentElement = undefined;
-        }
-        if (settings && typeof settings.template === 'function') {
+        this.parentElement = settings?.parentElement;
+        this.element = settings?.element || document.createElement('div');
+        // Only explicit settings override subclass prototype hooks.
+        if (settings?.template)
             this.template = settings.template;
-        }
-        else {
-            this.template = undefined;
-        }
-        if (settings && typeof settings.model === 'object') {
-            this.model = settings.model;
-        }
-        else {
-            this.model = undefined;
-        }
-        if (settings && typeof settings.element === 'object') {
-            this.element = settings.element;
-        }
-        else {
-            this.element = document.createElement('div');
-        }
-        this.update = settings?.update;
-        // Keep a stable callback so this view can remove only its own model listener.
-        this.modelChangeHandler = () => this.render();
-        this.twoWayBindingInitialized = false;
-        this.renderedTemplate = undefined;
-        this.delegated = this.delegate(this.element);
-    }
-    /**
-     * Start this instance and return it for lifecycle chaining.
-     * @returns This instance for chaining.
-     */
-    initialize() {
-        this.render();
-        return this;
-    }
-    /**
-     * Release owned state and listeners so the instance can leave the application lifecycle.
-     * @returns This instance after cleanup.
-     */
-    destroy() {
-        //remove element from dom
-        if (typeof this.parentElement === 'object' && this.parentElement.contains(this.element)) {
-            this.parentElement.removeChild(this.element);
-        }
-        // remove all the events from the dom
-        this.removeListeners();
-        this.delegated.clear();
-        // remove all the events from the model
-        this.destroyTwoWayBinding();
-        // reset object to div
-        this.element = document.createElement('div');
+        if (settings?.update)
+            this.update = settings.update;
+        this.currentModel = settings?.model;
+        this.batchUpdates = settings?.batchUpdates === true;
+        this.modelChangeHandler = () => this.requestRender();
         this.delegated = this.delegate();
-        this.renderedTemplate = undefined;
+    }
+    get model() { return this.currentModel; }
+    /** Assignment moves an active subscription; use setModel() to render the new data immediately. */
+    set model(value) {
+        if (value === this.currentModel)
+            return;
+        const rebind = this.twoWayBindingInitialized;
+        this.destroyTwoWayBinding();
+        this.currentModel = value;
+        if (rebind)
+            this.initializeTwoWayBinding();
+    }
+    /** Replace the model and synchronously render its current data. */
+    setModel(model) {
+        this.model = model;
+        return this.render();
+    }
+    initialize() { return this.render(); }
+    /** Coalesce automatic updates when enabled, falling back to synchronous rendering without RAF. */
+    requestRender() {
+        const window = this.element.ownerDocument?.defaultView;
+        if (!this.batchUpdates || !window?.requestAnimationFrame)
+            return this.render();
+        if (this.pendingFrame === undefined) {
+            this.frameWindow = window;
+            this.pendingFrame = window.requestAnimationFrame(() => {
+                this.pendingFrame = undefined;
+                this.frameWindow = undefined;
+                this.render();
+            });
+        }
         return this;
     }
-    /**
-     * Subscribe once to model changes using the stable render callback.
-     * @returns No value.
-     */
+    cancelRender() {
+        if (this.pendingFrame !== undefined) {
+            this.frameWindow.cancelAnimationFrame(this.pendingFrame);
+            this.pendingFrame = undefined;
+            this.frameWindow = undefined;
+        }
+    }
+    /** Register ownership without mounting the child. Owned children are destroyed on root replacement. */
+    addChild(child) {
+        for (let ancestor = this; ancestor; ancestor = ancestor.owner) {
+            if (ancestor === child)
+                throw new TypeError('Child view ownership must not contain cycles');
+        }
+        if (child.owner && child.owner !== this)
+            throw new TypeError('Child view already has an owner');
+        this.children.add(child);
+        child.owner = this;
+        return this;
+    }
+    /** Relinquish ownership without destroying the child. */
+    releaseChild(child) {
+        if (this.children.delete(child))
+            child.owner = undefined;
+        return this;
+    }
+    /** Clean up all owned children, reporting failures after attempting each child. */
+    destroyChildren() {
+        const errors = [];
+        for (const child of this.children) {
+            this.releaseChild(child);
+            try {
+                child.destroy();
+            }
+            catch (error) {
+                errors.push(error);
+            }
+        }
+        if (errors.length)
+            throw new AggregateError(errors, 'Unable to destroy child views');
+    }
+    /** Release listeners and owned children even if a subclass cleanup hook throws. */
+    releaseRoot() {
+        try {
+            this.destroyChildren();
+        }
+        finally {
+            try {
+                this.removeListeners();
+            }
+            finally {
+                this.delegated.clear();
+                this.mountedElement = undefined;
+            }
+        }
+    }
+    /** Remove the owned root from its actual parent, including nested roots. May be initialized again. */
+    destroy() {
+        this.cancelRender();
+        this.owner?.releaseChild(this);
+        try {
+            this.releaseRoot();
+        }
+        finally {
+            this.destroyTwoWayBinding();
+            this.element.parentNode?.removeChild(this.element);
+            this.element = document.createElement('div');
+            this.delegated = this.delegate();
+            this.renderedTemplate = undefined;
+        }
+        return this;
+    }
+    /** Subscribe once; observable models must expose a matching removal method. */
     initializeTwoWayBinding() {
-        if (!this.twoWayBindingInitialized &&
-            this.model &&
-            typeof this.model.on === 'function') {
+        if (this.boundModel !== this.model)
+            this.destroyTwoWayBinding();
+        if (!this.twoWayBindingInitialized && this.model &&
+            typeof this.model.on === 'function' && typeof this.model.removeListener === 'function') {
+            this.boundModel = this.model;
             this.model.on('change', this.modelChangeHandler);
             this.twoWayBindingInitialized = true;
         }
     }
-    /**
-     * Remove only this view's model subscription, leaving other subscribers intact.
-     * @returns No value.
-     */
+    /** Remove the subscription from the emitter originally bound and cancel queued rendering. */
     destroyTwoWayBinding() {
-        if (this.twoWayBindingInitialized &&
-            this.model &&
-            typeof this.model.removeListener === 'function') {
-            this.model.removeListener('change', this.modelChangeHandler);
-        }
+        this.cancelRender();
+        if (this.twoWayBindingInitialized)
+            this.boundModel.removeListener('change', this.modelChangeHandler);
+        this.boundModel = undefined;
         this.twoWayBindingInitialized = false;
     }
-    /**
-     * Lifecycle hook for attaching listeners owned by a subclass.
-     * @returns This instance for chaining.
-     */
-    addListeners() {
-        //bind events
-        return this;
-    }
-    /**
-     * Release listeners owned by this instance; subclasses may extend the lifecycle hook.
-     * @returns This instance for chaining.
-     */
-    removeListeners() {
-        //unbind events
-        return this;
-    }
-    /**
-     * Create an event-delegation registry for the supplied root or the current view element.
-     * @param scope - DOM root that bounds event delegation or navigation.
-     * @returns A new event-delegation registry.
-     */
-    delegate(scope) {
-        return new DelegatedEvents(scope || this.element);
-    }
-    /**
-     * Render the current template, retaining an equal DOM tree and rebinding only after replacement.
-     * @returns This view, whether its DOM changed or remained equal.
-     */
-    render() {
-        let newElement;
-        if (typeof this.template === 'function') {
-            const data = this.model && typeof this.model.get === 'function'
-                ? this.model.get() : this.model || {};
-            // Opt-in updates preserve live controls and their selection/composition state.
-            if (this.parentElement?.contains(this.element) && this.update?.(this.element, data)) {
-                this.renderedTemplate = undefined;
-                return this;
-            }
-            newElement = this.template(data);
-            // if the template returns a string make it a dom object
-            if (typeof newElement === 'string') {
-                if (newElement === this.renderedTemplate &&
-                    typeof this.parentElement === 'object' &&
-                    this.parentElement.contains(this.element)) {
-                    return this;
-                }
-                this.renderedTemplate = newElement;
-                const parsed = new DOMParser().parseFromString(newElement.trim(), 'text/html').body.firstChild;
-                if (!parsed) {
-                    throw new TypeError('The view template must return a root node');
-                }
-                newElement = parsed;
-            }
-            else {
-                this.renderedTemplate = undefined;
-            }
-            if (typeof this.parentElement === 'object' && typeof newElement === 'object') {
-                if (this.parentElement.contains(this.element) &&
-                    typeof this.element.isEqualNode === 'function' &&
-                    this.element.isEqualNode(newElement)) {
-                    return this;
-                }
-                //render html changes
-                this.removeListeners();
-                this.delegated.clear();
-                this.destroyTwoWayBinding();
-                if (this.parentElement.contains(this.element)) {
-                    let oldDOMElement = this.element;
-                    this.element = newElement;
-                    this.delegated = this.delegate();
-                    this.addListeners();
-                    this.initializeTwoWayBinding();
-                    this.parentElement.replaceChild(this.element, oldDOMElement);
-                }
-                else {
-                    this.element = newElement;
-                    this.delegated = this.delegate();
-                    this.addListeners();
-                    this.initializeTwoWayBinding();
-                    this.parentElement.appendChild(this.element);
-                }
-            }
+    /** Called once for each mounted root, including adopted existing markup. */
+    addListeners() { return this; }
+    /** Called before root replacement or destruction. */
+    removeListeners() { return this; }
+    /** Called after insertion/adoption and listener setup; safe for focus and parent-relative measurement. */
+    afterMount() { return this; }
+    delegate(scope) { return new DelegatedEvents(scope || this.element); }
+    activateRoot() {
+        this.initializeTwoWayBinding();
+        if (this.mountedElement !== this.element) {
+            this.mountedElement = this.element;
+            this.addListeners();
+            this.afterMount();
         }
         return this;
     }
+    /** Render synchronously, preserving equal roots while ensuring their lifecycle is initialized. */
+    render() {
+        this.cancelRender();
+        const attached = this.parentElement?.contains(this.element);
+        if (typeof this.template !== 'function')
+            return attached ? this.activateRoot() : this;
+        const data = this.model && typeof this.model.get === 'function' ? this.model.get() : this.model || {};
+        if (attached && this.update(this.element, data)) {
+            this.renderedTemplate = undefined;
+            return this.activateRoot();
+        }
+        let newElement = this.template(data);
+        const html = typeof newElement === 'string' ? newElement : undefined;
+        if (html !== undefined) {
+            if (html === this.renderedTemplate && attached)
+                return this.activateRoot();
+            const body = new DOMParser().parseFromString(html.trim(), 'text/html').body;
+            if (body.childNodes.length !== 1 || body.firstChild.nodeType !== 1) {
+                throw new TypeError('The view template must return exactly one root node (an element)');
+            }
+            newElement = body.firstChild;
+        }
+        const root = newElement;
+        if (!root || root.nodeType !== 1) {
+            throw new TypeError('The view template must return exactly one root node (an element)');
+        }
+        if (!this.parentElement)
+            return this;
+        if (attached && this.element.isEqualNode(root)) {
+            this.renderedTemplate = html;
+            return this.activateRoot();
+        }
+        this.releaseRoot();
+        if (attached)
+            this.element.parentNode.replaceChild(root, this.element);
+        else
+            this.parentElement.appendChild(root);
+        this.element = root;
+        this.delegated = this.delegate();
+        this.renderedTemplate = html;
+        return this.activateRoot();
+    }
 }
-;
 module.exports = View;
 //# sourceMappingURL=index.js.map
