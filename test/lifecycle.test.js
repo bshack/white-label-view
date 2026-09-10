@@ -108,3 +108,46 @@ test('delegation filters events and removes only matching registrations', t => {
     assert.equal(rootCount, 1);
     rootEvents.off('click');
 });
+
+test('owned delegation is cleared on replacement and destruction, without subclass cleanup', t => {
+    const window = dom(t);
+    let text = 'first';
+    const view = new View({parentElement: document.querySelector('main'), template: () => `<div>${text}</div>`}).initialize();
+    let calls = 0;
+    const first = view.element;
+    view.delegated.on('click', 'div', () => calls++);
+    text = 'second';
+    view.render();
+    first.dispatchEvent(new window.MouseEvent('click'));
+    const last = view.element;
+    view.delegated.on('click', 'div', () => calls++);
+    view.destroy();
+    last.dispatchEvent(new window.MouseEvent('click'));
+    assert.equal(calls, 0);
+    assert.equal(view.delegated.scope, view.element);
+    assert.equal(view.delegated.listeners.length, 0);
+});
+
+test('opt-in updates preserve focus and selection and can fall back to a new template', t => {
+    dom(t);
+    const data = {value: 'Ada'};
+    let update = true;
+    const view = new View({parentElement: document.querySelector('main'), model: data,
+        template: () => '<div><input value="Ada"><span></span></div>',
+        update: (element, state) => {
+            if (!update) return false;
+            element.querySelector('span').textContent = state.value;
+            return true;
+        }
+    }).initialize();
+    const input = view.element.querySelector('input');
+    input.focus(); input.setSelectionRange(1, 2);
+    data.value = 'Grace'; view.render();
+    assert.equal(document.activeElement, input);
+    assert.equal(input.selectionStart, 1);
+    assert.equal(input.selectionEnd, 2);
+    assert.equal(view.element.querySelector('span').textContent, 'Grace');
+    update = false; view.render();
+    assert.notEqual(view.element.querySelector('input'), input);
+    view.destroy();
+});

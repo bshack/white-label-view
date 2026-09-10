@@ -10,6 +10,7 @@ interface ViewSettings {
     element?: Element;
     model?: object & ViewModel;
     template?: (data: unknown) => string | Node;
+    update?: (element: Node, data: unknown) => boolean;
 }
 type DelegatedCallback = (this: Element, event: Event) => unknown;
 /** Native event delegation scoped to a view root. */
@@ -42,6 +43,8 @@ declare class DelegatedEvents {
      * @returns This delegation registry after matching listeners are removed.
      */
     off(type: string, selector?: string, callback?: DelegatedCallback): this;
+    /** Remove all listeners registered through this owned registry. */
+    clear(): this;
 }
 /** Render a model through a template and release owned listeners on teardown. */
 declare class View {
@@ -49,6 +52,7 @@ declare class View {
     element: Node;
     model?: object & ViewModel;
     template?: (data: unknown) => string | Node;
+    update?: (element: Node, data: unknown) => boolean;
     modelChangeHandler: () => void;
     twoWayBindingInitialized: boolean;
     renderedTemplate?: string;

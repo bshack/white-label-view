@@ -181,3 +181,9 @@ npm pack --dry-run
 Tests exercise the compiled JavaScript interface used by downstream callers. Coverage is an execution metric, not proof that all possible inputs or external integrations are correct.
 
 To undo this migration, revert its commit and run `npm ci` from the restored lockfile. No npm release, database migration, or production deployment is performed by these development changes.
+
+## Unreleased rendering and cleanup changes
+
+An optional `update(element, data): boolean` constructor setting can update an attached root in place. Return `true` when handled; return `false` to run normal template rendering. This lets applications retain focused inputs and selection without replacing their DOM. Use `textContent` or equivalent safe property updates for untrusted data. Default template rendering still replaces the root.
+
+Replacement and destruction clear all listeners in the view-owned delegated registry, even when a subclass removal hook omits one. Independent registries created with `delegate(scope)` remain caller-owned; call their `clear()` method on teardown.

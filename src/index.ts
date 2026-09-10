@@ -10,6 +10,7 @@ interface ViewSettings {
     element?: Element;
     model?: object & ViewModel;
     template?: (data: unknown) => string | Node;
+    update?: (element: Node, data: unknown) => boolean;
 }
 type DelegatedCallback = (this: Element, event: Event) => unknown;
 /** Native event delegation scoped to a view root. */
@@ -67,6 +68,14 @@ class DelegatedEvents {
         return this;
     }
 
+    /** Remove all listeners registered through this owned registry. */
+    clear() {
+        for (const registered of this.listeners) {
+            this.scope.removeEventListener(registered.type, registered.listener);
+        }
+        this.listeners.length = 0;
+        return this;
+    }
 }
 
 
@@ -77,6 +86,7 @@ class View {
     element: Node;
     model?: object & ViewModel;
     template?: (data: unknown) => string | Node;
+    update?: (element: Node, data: unknown) => boolean;
     modelChangeHandler: () => void;
     twoWayBindingInitialized: boolean;
     renderedTemplate?: string;
@@ -112,6 +122,8 @@ class View {
                 this.element = document.createElement('div');
             }
 
+            this.update = settings?.update;
+
             // Keep a stable callback so this view can remove only its own model listener.
             this.modelChangeHandler = () => this.render();
             this.twoWayBindingInitialized = false;
@@ -145,12 +157,14 @@ class View {
 
             // remove all the events from the dom
             this.removeListeners();
+            this.delegated.clear();
 
             // remove all the events from the model
             this.destroyTwoWayBinding();
 
             // reset object to div
             this.element = document.createElement('div');
+            this.delegated = this.delegate();
             this.renderedTemplate = undefined;
 
             return this;
@@ -229,13 +243,14 @@ class View {
 
             if (typeof this.template === 'function') {
 
-                if (this.model && typeof this.model.get === 'function') {
-                    newElement = this.template(this.model.get());
-                } else if (typeof this.model === 'object') {
-                    newElement = this.template(this.model);
-                } else {
-                    newElement = this.template({});
+                const data = this.model && typeof this.model.get === 'function'
+                    ? this.model.get() : this.model || {};
+                // Opt-in updates preserve live controls and their selection/composition state.
+                if (this.parentElement?.contains(this.element) && this.update?.(this.element, data)) {
+                    this.renderedTemplate = undefined;
+                    return this;
                 }
+                newElement = this.template(data);
 
                 // if the template returns a string make it a dom object
                 if (typeof newElement === 'string') {
@@ -251,7 +266,7 @@ class View {
                     if (!parsed) {
                         throw new TypeError('The view template must return a root node');
                     }
-                    newElement = parsed.cloneNode(true);
+                    newElement = parsed;
                 } else {
                     this.renderedTemplate = undefined;
                 }
@@ -268,6 +283,7 @@ class View {
 
                     //render html changes
                     this.removeListeners();
+                    this.delegated.clear();
                     this.destroyTwoWayBinding();
 
                     if (this.parentElement.contains(this.element)) {
