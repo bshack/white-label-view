@@ -1,15 +1,15 @@
 # white-label-view
 
-`white-label-view` is a small browser view class for rendering a template into the DOM, responding to model changes, and managing delegated DOM events.
+`white-label-view` is a small browser view class focused on DOM rendering, model-driven updates, delegated events, batching, child-view ownership, and lifecycle cleanup.
 
-It is intentionally unopinionated: your template can be any function that returns a DOM element or an HTML string, and your model can be a plain object or an event-emitting object such as [`white-label-model`](https://github.com/bshack/white-label-model).
+The package intentionally does **not** bundle a templating engine, CSS framework, component framework, sanitizer, or state library. A view receives a plain render function that returns either one DOM element or one trusted HTML root string. Styling and any higher-level rendering tools belong to the consuming application.
 
 ## Requirements
 
 - Node.js `^22.18.0` or `>=24.11.0` for installation and development
-- A browser environment with `document`, `DOMParser`, and standard DOM APIs at runtime
+- A browser DOM at runtime
 
-## Install and import
+## Install
 
 ```sh
 npm install white-label-view
@@ -19,55 +19,84 @@ npm install white-label-view
 import View from 'white-label-view';
 ```
 
-## Complete example
-
-The constructor accepts `parentElement`, `element`, `model`, `template`, `update`, and `batchUpdates`. Calling `initialize()` renders the view.
+## Basic use
 
 ```js
 import View from 'white-label-view';
-import {Eta} from 'eta/core';
 import {Model} from 'white-label-model';
 
 const model = new Model({name: 'Ada'});
-const eta = new Eta({autoEscape: true});
-const profileTemplate = eta.compile(
-    '<section class="profile"><h1>Hello, <%= it.name %></h1></section>'
-);
+const parentElement = document.querySelector('main');
 
 const profileView = new View({
-    parentElement: document.querySelector('main'),
+    parentElement,
     model,
-    template: (data) => eta.render(profileTemplate, data)
-});
+    template: data => {
+        const section = parentElement.ownerDocument.createElement('section');
+        const heading = parentElement.ownerDocument.createElement('h1');
+        heading.textContent = `Hello, ${data.name}`;
+        section.append(heading);
+        return section;
+    }
+}).initialize();
 
-profileView.initialize();
-
-// The model emits "change", so the view renders the new value automatically.
 model.update({name: 'Grace'});
-
-// Remove the DOM element and listeners when the view is no longer needed.
 profileView.destroy();
 ```
 
-Eta is intentionally not a runtime dependency of `white-label-view`; the view accepts any function returning a DOM node or single-root HTML string. Applications that choose Eta should install it directly and use `eta/core` for browser bundles. Eta escapes `<%=` values by default; never compile user-controlled template source.
-
-## Accessibility and indexability
-
-The view lifecycle does not make rendered markup conformant by itself. Templates must use semantic HTML, accessible names and status behavior, keyboard-operable controls, visible/unobscured focus, sufficient contrast, reflow, and applicable WCAG 2.2 Level AA requirements. Prefer updating a stable live region over replacing focused interactive elements. Public primary content should be rendered into the initial server or static HTML; use this class for progressive enhancement so search crawlers and no-JavaScript users retain the content and crawlable links.
+The `template` setting is only a JavaScript callback. `white-label-view` does not ship or require a template language. DOM construction is the safest default for untrusted data. If an application returns HTML strings, that markup is trusted caller input and must already be safely escaped or sanitized for its context.
 
 ## Rendering lifecycle
 
-`initialize()` calls synchronous `render()`. The view reads `model.get()` when available, otherwise passes the model object to its template. On an attached root, `update(element, data)` can return `true` to handle the update in place. Its default returns `false` to use the template.
+`initialize()` calls synchronous `render()`.
 
-A new root is appended or replaces the previous root in its actual parent, including when nested under `parentElement`. After insertion or adoption, the view initializes its model subscription, calls `addListeners()`, then calls `afterMount()`. Both hooks run once per root, including existing markup that already matches the template. `afterMount()` is suitable for focus and measurement relative to the parent; an externally detached parent is still detached from the document.
+When a model exposes `get()`, the view passes `model.get()` to the render callback. Otherwise it passes the model object. When the root is already attached, `update(element, data)` can return `true` to handle the update in place. Returning `false` falls back to normal rendering.
 
-Equal template strings skip parsing and replacement. Equal DOM trees also preserve the existing root. These fast paths still initialize listeners and binding when needed. A supplied existing element can be initialized without a template when already inside `parentElement`. Adoption is not a general hydration/diff engine.
+A successful mount or replacement:
 
-Templates must return exactly one element, either directly or as a single-root HTML string. Empty strings, text/comment roots, additional root nodes, null, and fragments throw a `TypeError`. Leading/trailing whitespace is trimmed. Invalid output leaves the last successful render cache intact, so repeated invalid renders still throw. HTML remains trusted caller input; View does not sanitize it.
+1. inserts or replaces the root in its actual DOM parent;
+2. initializes the model subscription when possible;
+3. calls `addListeners()` once for that root;
+4. calls `afterMount()` once for that root.
 
-## Create a reusable view
+Equal HTML strings skip reparsing while attached. Equal DOM trees preserve the existing root. Existing markup can also be adopted when the supplied `element` is already within `parentElement`.
 
-Extend `View` when the component needs custom DOM events:
+Render callbacks must return exactly one element. Empty strings, text nodes, comments, multiple roots, fragments, `null`, and other non-element results throw `TypeError`. Invalid output does not replace the last successful root.
+
+String roots are parsed with a temporary `<template>` in the view's owning document. This avoids a global parser dependency, reduces parser setup, and keeps iframe or multi-document views in the correct document.
+
+## Constructor settings
+
+| Setting | Meaning |
+| --- | --- |
+| `parentElement` | DOM element that receives or contains the root. |
+| `element` | Existing root element. Defaults to a new `div` in the owning document. |
+| `model` | Plain data object or an object with optional `get()`, `on()`, and `removeListener()` methods. |
+| `template` | Function receiving model data and returning one DOM node or one trusted single-root HTML string. |
+| `update` | Optional in-place update hook. Return `true` when handled or `false` to use normal rendering. |
+| `batchUpdates` | When `true`, coalesce automatic model updates into one animation frame. Manual `render()` stays synchronous. |
+
+## Public methods
+
+| Method | Behavior |
+| --- | --- |
+| `initialize()` | Render current state and return the view. |
+| `render()` | Synchronously update or mount the root. |
+| `destroy()` | Cancel queued work, destroy owned children, remove listeners and model binding, remove the root, and reset the view for reuse. |
+| `setModel(model?)` | Move the model subscription and immediately render current state. |
+| `requestRender()` | Render now or request one batched animation-frame render. |
+| `addListeners()` | Extension hook called after a root is installed. |
+| `removeListeners()` | Extension hook called before root replacement or destruction. |
+| `afterMount()` | Extension hook called after insertion/adoption and listener setup. |
+| `addChild(child)` | Register child ownership without mounting it. |
+| `releaseChild(child)` | Relinquish ownership without destroying the child. |
+| `delegate(scope?)` | Create a native delegated-event registry for a scope or the current root. |
+| `initializeTwoWayBinding()` | Add one model `change` listener when the model supports removable listeners. |
+| `destroyTwoWayBinding()` | Remove this view's model listener and cancel queued rendering. |
+
+Despite the historical method name, model binding is one-way: model changes trigger view rendering. Form input is not automatically written back to the model.
+
+## Reusable views and delegated events
 
 ```js
 import View from 'white-label-view';
@@ -90,57 +119,79 @@ export default class MenuView extends View {
 
     handleLinkClick(event) {
         event.preventDefault();
-        console.log(event.target.href);
     }
 }
 ```
 
-Use matching `addListeners()` and `removeListeners()` implementations because rendering can replace the root element. Stable callback references make it possible to remove exactly the listener that was added. Delegation uses native `addEventListener()` and `closest()` APIs and does not require a runtime dependency.
+Delegation uses native `addEventListener()` and `closest()`. `on(type, selector, callback, options)` accepts a capture boolean or normal listener options including `capture`, `passive`, `signal`, and `once`. A `once` registration is consumed only after a matching delegated event. Aborting a supplied signal removes both the native registration and the registry reference. `off()` can filter by type, selector, callback, and capture phase. `clear()` removes all registrations.
 
-## Manual model binding
+The matching element is the callback's `this` value.
 
-Automatic binding occurs after insertion or adoption in `parentElement`. Observable models must provide both `on()` and `removeListener()` so subscriptions can be released; objects without that pair are treated as non-observable data. You can also control it directly:
+Independent registries created with `delegate(scope)` are caller-owned; call their `clear()` method when they are no longer needed. The view-owned `delegated` registry is cleared automatically when the root is replaced or destroyed.
+
+## In-place updates and focus preservation
+
+Use `update()` when replacing a root would unnecessarily destroy focus, selection, or other browser state:
 
 ```js
-profileView.initializeTwoWayBinding();
-profileView.destroyTwoWayBinding();
+const view = new View({
+    parentElement: document.querySelector('main'),
+    model,
+    template: () => '<section><input><span></span></section>',
+    update: (element, data) => {
+        element.querySelector('span').textContent = data.status;
+        return true;
+    }
+}).initialize();
 ```
 
-The binding listens in one direction: model changes trigger view rendering. Form input is not written back to the model automatically; application code must handle that in a DOM event listener.
+Returning `false` from `update()` runs the normal render callback instead.
 
-## Constructor settings
+## Model replacement and batching
 
-| Setting | Meaning |
-| --- | --- |
-| `parentElement` | DOM node that receives or contains the view's root element. |
-| `element` | Existing root DOM node. Defaults to a new `div`. |
-| `model` | Plain data object or an object with `get()`, `on()`, and `removeListener()` methods. |
-| `template` | Function receiving model data and returning exactly one element or a single-root HTML string. |
-| `update` | Optional in-place update hook; return true when handled or false for template rendering. |
-| `batchUpdates` | Opt-in animation-frame batching for model changes/requestRender(); defaults to false. |
+Assigning `view.model = nextModel` moves an active subscription from the old emitter to the new one but does not render immediately. Use `view.setModel(nextModel)` when the new state should render immediately.
 
-## Public methods
+Observable models must provide both `on()` and `removeListener()` so the view can release its subscription. Objects that do not provide both methods are treated as non-observable data.
 
-| Method | Behavior |
-| --- | --- |
-| `initialize()` | Renders the current template and returns the view. |
-| `render()` | Updates the DOM when a valid template and parent are available. |
-| `destroy()` | Cancels queued work and removes the root, owned children, delegated events, and model subscription. |
-| `addListeners()` | Extension hook called after a rendered element is installed. |
-| `removeListeners()` | Extension hook called before replacement or destruction. |
-| `afterMount()` | Hook after insertion/adoption and listener setup; runs once per root. |
-| `setModel(model)` | Moves the model subscription and immediately renders the new data; omit to clear the model. |
-| `requestRender()` | Requests an optionally batched render. |
-| `addChild(child)` | Registers child ownership without mounting it. |
-| `releaseChild(child)` | Relinquishes ownership without destroying the child. |
-| `delegate(scope)` | Creates a native delegated-event instance for `scope` or the view element. |
-| `initializeTwoWayBinding()` | Adds one model `change` listener. |
-| `destroyTwoWayBinding()` | Removes this view's model listener without removing other subscribers. |
+Set `batchUpdates: true` to coalesce model-driven renders into one `requestAnimationFrame` callback. The callback reads the latest model state. `render()`, `setModel()`, model replacement, binding teardown, and destruction cancel pending work. If the owning window does not provide `requestAnimationFrame`, rendering falls back to synchronous behavior.
+
+## Owned child views
+
+`addChild()` opts a child into parent ownership. It does not mount the child. Initialize the child explicitly with an appropriate parent element, commonly from `afterMount()`.
+
+Parent root replacement and destruction destroy all owned children. In-place updates and equal-root renders preserve them. Duplicate registration is harmless. Ownership cycles and simultaneous ownership by two parents throw `TypeError`.
+
+`releaseChild()` transfers cleanup responsibility without destroying the child. Destroying a child directly also removes it from its owner.
+
+## Accessibility and indexing
+
+The library manages lifecycle, not markup quality. Applications remain responsible for semantic HTML, accessible names, keyboard operation, focus visibility, reflow, contrast, live-region behavior, and other applicable accessibility requirements.
+
+For public content, prefer meaningful server-rendered or static initial HTML and use View for progressive enhancement. This keeps primary content and crawlable links available before JavaScript executes.
+
+## TypeScript
+
+The implementation uses strict TypeScript and emits CommonJS JavaScript, source maps, and declarations into `dist`.
+
+```ts
+import View from 'white-label-view';
+
+const settings: View.Settings = {
+    parentElement: document.body,
+    template: () => '<p>Hello</p>',
+    batchUpdates: true
+};
+
+const view = new View(settings).initialize();
+view.destroy();
+```
+
+`View.Settings`, `View.Model`, and `View.ListenerOptions` expose the supported public types. Template data is `unknown`; application code should narrow it before reading domain-specific fields.
 
 ## Development
 
 ```sh
-npm ci
+npm ci --ignore-scripts
 npm run build
 npm run typecheck
 npm test
@@ -148,82 +199,19 @@ npm run coverage
 npm run audit
 ```
 
-The npm package publishes the compiled `dist` file and this README.
+Coverage is enforced at 100% for statements, branches, functions, and lines in every implementation file. CI also refreshes dependency metadata, builds tracked `dist`, runs the complete test/type/coverage/audit suite, uploads generated files, and verifies that committed `package-lock.json` and `dist` match generated output.
 
-## TypeScript development and version 4.0.0 migration
+Edit `src/*.ts`, not generated `dist` files. The npm package publishes `dist` and this README.
 
-Implementation code now uses strict TypeScript. Builds emit JavaScript, source maps with embedded source, and `.d.ts` declarations into `dist`. JavaScript callers can still use the package without compiling TypeScript themselves. JSDoc comments describe parameters, return values, lifecycle behavior, and validation at the implementation, and are retained in declarations.
+## Scope
 
-```ts
-import View from 'white-label-view';
+`white-label-view` is deliberately limited to view responsibilities:
 
-const settings: View.Settings = {
-    parentElement: document.body,
-    template: () => '<p>Hello, Ada</p>'
-};
-const greeting = new View(settings).initialize();
-greeting.destroy();
-```
+- DOM root creation, adoption, replacement, and cleanup
+- model-to-view change subscriptions
+- optional frame batching
+- delegated DOM events
+- child-view ownership
+- lifecycle hooks
 
-`View.Settings` describes the optional parent, existing element, model, template, update hook, and batching flag. `View.Model` describes the observable methods used for binding. Template input is `unknown`; narrow it before reading application-specific properties. Templates return a DOM node or trusted HTML with a root node. Empty HTML now throws an explicit error. HTML is not sanitized by the view.
-
-This is a major release because the distribution is now CommonJS emitted by TypeScript, replacing the previous UMD wrapper. CommonJS `require` and the documented ESM imports remain supported. Direct AMD loading or browser script tags that depended on UMD globals must migrate to a browser bundler. Edit `src/*.ts`, then run `npm run build`; do not edit generated `dist` files. The obsolete Babel build dependencies have been removed.
-
-### Verification and coverage
-
-```sh
-npm ci --ignore-scripts
-npm run typecheck
-npm test
-npm run coverage
-npm pack --dry-run
-```
-
-`npm test` builds the code, checks TypeScript consumer examples against the emitted declarations, and runs the tests. `npm run coverage` additionally enforces **100% statements, branches, functions, and lines for each implementation file**. Unexecuted implementation files count toward the result; declaration-only files contain no executable code and are excluded. Reports are written to `coverage`, including `lcov.info` for coverage viewers. CI runs the same gate and checks committed build output for drift.
-
-Tests exercise the compiled JavaScript interface used by downstream callers. Coverage is an execution metric, not proof that all possible inputs or external integrations are correct.
-
-To undo this migration, revert its commit and run `npm ci` from the restored lockfile. No npm release, database migration, or production deployment is performed by these development changes.
-
-## Unreleased rendering and cleanup changes
-
-An optional `update(element, data): boolean` constructor setting can update an attached root in place. Return `true` when handled; return `false` to run normal template rendering. This lets applications retain focused inputs and selection without replacing their DOM. Use `textContent` or equivalent safe property updates for untrusted data. Default template rendering still replaces the root.
-
-Replacement and destruction clear all listeners in the view-owned delegated registry, even when a subclass removal hook omits one. Independent registries created with `delegate(scope)` remain caller-owned; call their `clear()` method on teardown.
-
-## Model replacement and batching
-
-Assigning `view.model = nextModel` moves an active subscription off the old emitter and onto the new one. Assignment itself does not render; use `view.setModel(nextModel)` for an immediate render. Destroying the view removes its callback from the emitter it actually subscribed to. Manually paused binding stays paused across assignment; rendering initializes binding as usual.
-
-Synchronous rendering remains the default. Set `batchUpdates: true` to coalesce model changes into one `requestAnimationFrame` callback that reads the latest model state. `render()` and `setModel()` remain synchronous and cancel pending frames. Model replacement, binding teardown, and destruction cancel queued work. Without an animation-frame API the view renders synchronously. Do not rely on batched rendering having occurred immediately after a model event.
-
-## Delegated listener options
-
-```js
-const controller = new AbortController();
-view.delegated.on('focus', 'input', handleFocus, {
-    capture: true,
-    signal: controller.signal
-});
-view.delegated.on('wheel', '.scroll-panel', observeWheel, {passive: true});
-controller.abort(); // Removes the focus registration and its registry references.
-```
-
-`on(type, selector, callback, options)` accepts a capture boolean or browser-style listener options:
-
-- `capture`: observe the capture phase, including descendant focus/blur events that do not bubble.
-- `passive`: the listener cannot cancel default browser behavior with `preventDefault()`; useful for observing touch/wheel input.
-- `signal`: abort removes the registration. An already-aborted signal registers nothing. `clear()`, `off()`, and consumed once listeners also detach the signal callback so external controllers do not retain the registry.
-- `once`: invoke once for a **matching** event. Unmatched events do not consume it, and removal occurs before callback invocation to handle recursive dispatch.
-
-`off(type, selector?, callback?, options?)` optionally accepts a capture boolean or `{capture}` to restrict removal. Omit it to remove matching registrations in either phase. `clear()` removes all registrations. The matching element remains the callback's `this` value. Independent registries from `delegate(scope)` are caller-owned; destroy them with `clear()`.
-
-## Owned child views
-
-Call `parentView.addChild(childView)` to opt into ownership. The child is not automatically mounted; initialize it explicitly using a parent element within the parent view, typically from `afterMount()`. Parent root replacement and destruction destroy owned children, which releases their model subscriptions, events, queued frames, and their own children. In-place updates and equal-root renders preserve children. Registering the same child twice is harmless; cycles and simultaneous ownership by two parents are rejected.
-
-Call `releaseChild(childView)` to transfer cleanup responsibility without destroying it. Destroying a child directly also removes it from its owner's registry. Cleanup attempts every owned child before reporting failures; root and model cleanup still run if a child or removal hook throws.
-
-## Follow-up compatibility notes
-
-The new lifecycle methods and options are additive. Two corrections affect existing code: `addListeners()` now runs after insertion (matching its documented contract), and malformed multi-root/non-element templates now throw instead of being silently truncated or accepted. Models exposing only `on()` are no longer automatically subscribed because they cannot be cleaned up. Review these cases before release. No package version, dependencies, or consumer pins have been changed. There is still no automatic form-to-model binding or HTML sanitization.
+Templating engines, CSS systems, application state choices, routing, networking, and sanitization are intentionally outside this package.
