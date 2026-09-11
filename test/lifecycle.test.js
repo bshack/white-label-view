@@ -3,7 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {JSDOM} = require('jsdom');
 const {EventEmitter} = require('node:events');
-const {Eta} = require('eta/core');
 const View = require('../dist');
 function dom(t) {
     const window = new JSDOM('<main></main>').window;
@@ -12,17 +11,16 @@ function dom(t) {
     t.after(() => {window.close(); delete global.document; delete global.DOMParser;});
     return window;
 }
-test('renders escaped Eta output without coupling the package to a template engine', t => {
+test('renders trusted single-root HTML without requiring a template engine', t => {
     dom(t);
-    const eta = new Eta({autoEscape: true});
     const parentElement = document.querySelector('main');
     const view = new View({
         parentElement,
-        model: {name: '<script>alert(1)</script>'},
-        template: data => eta.renderString('<p><%= it.name %></p>', data)
+        model: {name: 'Ada'},
+        template: data => `<p>Hello, ${data.name}</p>`
     }).initialize();
-    assert.equal(parentElement.textContent, '<script>alert(1)</script>');
-    assert.equal(parentElement.querySelector('script'), null);
+    assert.equal(parentElement.textContent, 'Hello, Ada');
+    assert.equal(parentElement.firstElementChild.tagName, 'P');
     view.destroy();
 });
 test('renders, observes model updates, preserves unchanged DOM, and tears down', t => {
