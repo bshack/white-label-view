@@ -20,8 +20,20 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Refresh dependency metadata
+        run: npm install --package-lock-only --ignore-scripts
       - run: npm ci --ignore-scripts
-      - run: npm run build && git diff --exit-code -- dist
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-files
+          path: |
+            package-lock.json
+            dist
+          if-no-files-found: error
+          retention-days: 7
       - run: npm run typecheck
+      - run: npm test
       - run: npm run coverage
       - run: npm audit --audit-level=high
+      - run: git diff --exit-code -- package-lock.json dist
