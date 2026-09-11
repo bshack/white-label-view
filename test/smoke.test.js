@@ -17,13 +17,13 @@ test('two-way binding removes only the view listener', function() {
     const externalListener = function() {};
     view.model = model;
     view.modelChangeHandler = function() {};
-    view.twoWayBindingInitialized = false;
+    view.modelBindingInitialized = false;
     model.on('change', externalListener);
 
-    view.initializeTwoWayBinding();
-    view.initializeTwoWayBinding();
+    view.initializeModelBinding();
+    view.initializeModelBinding();
     assert.equal(model.listenerCount('change'), 2);
-    view.destroyTwoWayBinding();
+    view.destroyModelBinding();
 
     assert.deepEqual(model.listeners('change'), [externalListener]);
 });

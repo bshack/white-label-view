@@ -9,6 +9,14 @@ The package intentionally does **not** bundle a templating engine, CSS framework
 - Node.js `^22.18.0` or `>=24.11.0` for installation and development
 - A browser DOM at runtime
 
+## Versioning policy
+
+Backward compatibility is not maintained through aliases, deprecated method names, fallback signatures, or other runtime shims. Breaking public API changes are communicated with a Semantic Versioning major release and documented migration notes.
+
+### Version 5 migration
+
+The historically named `initializeTwoWayBinding()` and `destroyTwoWayBinding()` methods have been removed. The binding has always been one-way; use `initializeModelBinding()` and `destroyModelBinding()` instead. No compatibility aliases are provided.
+
 ## Install
 
 ```sh
@@ -152,10 +160,10 @@ String roots are parsed with a temporary `<template>` in the view's owning docum
 | `addChild(child)` | Register child ownership without mounting it. |
 | `releaseChild(child)` | Relinquish ownership without destroying the child. |
 | `delegate(scope?)` | Create a native delegated-event registry for a scope or the current root. |
-| `initializeTwoWayBinding()` | Add one model `change` listener when the model supports removable listeners. |
-| `destroyTwoWayBinding()` | Remove this view's model listener and cancel queued rendering. |
+| `initializeModelBinding()` | Add one model `change` listener when the model supports removable listeners. |
+| `destroyModelBinding()` | Remove this view's model listener and cancel queued rendering. |
 
-Despite the historical method name, model binding is one-way: model changes trigger view rendering. Form input is not automatically written back to the model.
+Model binding is one-way: model changes trigger view rendering. Form input is not automatically written back to the model.
 
 ## Reusable views and delegated events
 

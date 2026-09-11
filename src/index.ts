@@ -96,7 +96,7 @@ class View {
     update(_element: Node, _data: unknown): boolean { return false; }
     batchUpdates: boolean;
     modelChangeHandler: () => void;
-    twoWayBindingInitialized = false;
+    modelBindingInitialized = false;
     renderedTemplate?: string;
     delegated: DelegatedEvents;
     private currentModel?: object & ViewModel;
@@ -125,10 +125,10 @@ class View {
     /** Assignment moves an active subscription; use setModel() to render the new data immediately. */
     set model(value: (object & ViewModel) | undefined) {
         if (value === this.currentModel) return;
-        const rebind = this.twoWayBindingInitialized;
-        this.destroyTwoWayBinding();
+        const rebind = this.modelBindingInitialized;
+        this.destroyModelBinding();
         this.currentModel = value;
-        if (rebind) this.initializeTwoWayBinding();
+        if (rebind) this.initializeModelBinding();
     }
 
     /** Replace the model and synchronously render its current data. */
@@ -205,7 +205,7 @@ class View {
         this.owner?.releaseChild(this);
         const ownerDocument = this.element.ownerDocument!;
         try { this.releaseRoot(); } finally {
-            this.destroyTwoWayBinding();
+            this.destroyModelBinding();
             this.element.parentNode?.removeChild(this.element);
             this.element = ownerDocument.createElement('div');
             this.delegated = this.delegate();
@@ -215,22 +215,22 @@ class View {
     }
 
     /** Subscribe once; observable models must expose a matching removal method. */
-    initializeTwoWayBinding() {
-        if (this.boundModel !== this.model) this.destroyTwoWayBinding();
-        if (!this.twoWayBindingInitialized && this.model &&
+    initializeModelBinding() {
+        if (this.boundModel !== this.model) this.destroyModelBinding();
+        if (!this.modelBindingInitialized && this.model &&
             typeof this.model.on === 'function' && typeof this.model.removeListener === 'function') {
             this.boundModel = this.model;
             this.model.on('change', this.modelChangeHandler);
-            this.twoWayBindingInitialized = true;
+            this.modelBindingInitialized = true;
         }
     }
 
     /** Remove the subscription from the emitter originally bound and cancel queued rendering. */
-    destroyTwoWayBinding() {
+    destroyModelBinding() {
         this.cancelRender();
-        if (this.twoWayBindingInitialized) this.boundModel!.removeListener!('change', this.modelChangeHandler);
+        if (this.modelBindingInitialized) this.boundModel!.removeListener!('change', this.modelChangeHandler);
         this.boundModel = undefined;
-        this.twoWayBindingInitialized = false;
+        this.modelBindingInitialized = false;
     }
 
     /** Called once for each mounted root, including adopted existing markup. */
@@ -243,7 +243,7 @@ class View {
     delegate(scope?: Element) { return new DelegatedEvents(scope || this.element as Element); }
 
     private activateRoot() {
-        this.initializeTwoWayBinding();
+        this.initializeModelBinding();
         if (this.mountedElement !== this.element) {
             this.mountedElement = this.element;
             this.addListeners();

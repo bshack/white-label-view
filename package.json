@@ -1,6 +1,6 @@
 {
   "name": "white-label-view",
-  "version": "4.0.1",
+  "version": "5.0.0",
   "description": "A simple ES6 JS view.",
   "main": "dist/index.js",
   "files": [
