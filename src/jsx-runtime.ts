@@ -73,7 +73,7 @@ function renderAttribute(name: string, value: unknown): string {
         throw new TypeError(`Unsupported JSX attribute value for ${name}`);
     }
     if (typeof value === 'boolean') {
-        if (booleanAttributes.has(renderedName.toLowerCase())) {return value ? ` ${renderedName}` : '';}
+        if (booleanAttributes.has(renderedName.toLowerCase())) {return ` ${renderedName}`;}
         return ` ${renderedName}="${value}"`;
     }
     const renderedValue = name === 'style' && typeof value === 'object'
