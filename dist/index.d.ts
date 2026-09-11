@@ -48,7 +48,7 @@ declare class View {
     update(_element: Node, _data: unknown): boolean;
     batchUpdates: boolean;
     modelChangeHandler: () => void;
-    twoWayBindingInitialized: boolean;
+    modelBindingInitialized: boolean;
     renderedTemplate?: string;
     delegated: DelegatedEvents;
     private currentModel?;
@@ -79,9 +79,9 @@ declare class View {
     /** Remove the owned root from its actual parent, including nested roots. May be initialized again. */
     destroy(): this;
     /** Subscribe once; observable models must expose a matching removal method. */
-    initializeTwoWayBinding(): void;
+    initializeModelBinding(): void;
     /** Remove the subscription from the emitter originally bound and cancel queued rendering. */
-    destroyTwoWayBinding(): void;
+    destroyModelBinding(): void;
     /** Called once for each mounted root, including adopted existing markup. */
     addListeners(): this;
     /** Called before root replacement or destruction. */

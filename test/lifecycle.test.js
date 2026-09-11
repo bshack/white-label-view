@@ -51,7 +51,7 @@ test('supports plain models, DOM templates, detached roots, and missing options'
     const empty = new View();
     assert.equal(empty.initialize(), empty);
     empty.destroy();
-    empty.initializeTwoWayBinding();
+    empty.initializeModelBinding();
     const parentElement = document.querySelector('main');
     const element = document.createElement('p');
     parentElement.append(element);
@@ -73,9 +73,9 @@ test('supports plain models, DOM templates, detached roots, and missing options'
     unbound.template = () => '';
     assert.throws(() => unbound.render(), /root node/);
     unbound.model = {on() {}};
-    unbound.initializeTwoWayBinding();
-    unbound.destroyTwoWayBinding();
-    assert.equal(unbound.twoWayBindingInitialized, false);
+    unbound.initializeModelBinding();
+    unbound.destroyModelBinding();
+    assert.equal(unbound.modelBindingInitialized, false);
 });
 test('delegation filters events and removes only matching registrations', t => {
     const window = dom(t);

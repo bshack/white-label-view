@@ -62,8 +62,8 @@ test('model assignment moves subscriptions and setModel renders immediately with
     view.setModel({value:'plain'});assert.equal(parent.textContent,'plain');
     view.destroy();
     let registrations=0;
-    const incomplete=new View({model:{on(){registrations++;}}});incomplete.initializeTwoWayBinding();
-    incomplete.model={removeListener(){}};incomplete.initializeTwoWayBinding();
+    const incomplete=new View({model:{on(){registrations++;}}});incomplete.initializeModelBinding();
+    incomplete.model={removeListener(){}};incomplete.initializeModelBinding();
     assert.equal(registrations,0);incomplete.destroy();
 });
 
@@ -96,7 +96,7 @@ test('batching coalesces model events, uses current data and cancels on manual r
     model.emit('change');view.render();assert.equal(frame.queued.size,0);assert.equal(renders,3);
     model.emit('change');view.model=observable('new');assert.equal(frame.queued.size,0);
     view.model.emit('change');view.destroy();frame.flush();assert.equal(renders,3);assert.equal(parent.childNodes.length,0);
-    view.initialize();view.requestRender();view.destroyTwoWayBinding();assert.equal(frame.queued.size,0);view.destroy();
+    view.initialize();view.requestRender();view.destroyModelBinding();assert.equal(frame.queued.size,0);view.destroy();
 });
 
 test('synchronous rendering remains default and batching falls back without an animation-frame API', t => {
@@ -164,7 +164,7 @@ test('owned children are cleaned on replacement and destruction; ownership relea
     const other=new View();assert.throws(()=>other.addChild(child),/already has an owner/);
     owner.render();assert.equal(model.listenerCount('change'),1);
     label='second';owner.render();assert.equal(model.listenerCount('change'),0);assert.equal(parent.textContent,'second');
-    const released=new View({model});released.initializeTwoWayBinding();owner.addChild(released).releaseChild(released).releaseChild(released);
+    const released=new View({model});released.initializeModelBinding();owner.addChild(released).releaseChild(released).releaseChild(released);
     owner.destroy();assert.equal(model.listenerCount('change'),1);released.destroy();
     const direct=new View();other.addChild(direct);direct.destroy();other.destroy();
 });
