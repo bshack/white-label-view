@@ -7,13 +7,32 @@ const booleanAttributes = new Set([
 const voidElements = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
 
 export interface RawMarkup {readonly __whiteLabelRawMarkup: true; readonly value: string}
-export type JSXChild = string | number | bigint | boolean | null | undefined | RawMarkup | JSXChild[];
+export interface JSXMarkup {
+    readonly __whiteLabelJSXMarkup: true;
+    readonly value: string;
+    toString(): string;
+}
+export type JSXChild = string | number | bigint | boolean | null | undefined | RawMarkup | JSXMarkup | JSXChild[];
 export type JSXComponent = (props: Record<string, unknown>) => JSXChild;
 export type JSXType = string | JSXComponent | typeof fragment;
 
 /** Mark caller-owned markup as trusted so it is inserted without escaping. */
 export function raw(value: string): RawMarkup {
     return Object.freeze({__whiteLabelRawMarkup: true as const, value});
+}
+
+function markup(value: string): JSXMarkup {
+    return Object.freeze({
+        __whiteLabelJSXMarkup: true as const,
+        value,
+        toString: () => value
+    });
+}
+
+/** Identify output created by this JSX runtime. */
+export function isJSXMarkup(value: unknown): value is JSXMarkup {
+    return typeof value === 'object' && value !== null && '__whiteLabelJSXMarkup' in value &&
+        (value as {__whiteLabelJSXMarkup?: unknown}).__whiteLabelJSXMarkup === true;
 }
 
 function escapeText(value: string): string {
@@ -27,7 +46,10 @@ function escapeAttribute(value: string): string {
 function renderChild(child: JSXChild): string {
     if (child === null || child === undefined || child === false || child === true) {return '';}
     if (Array.isArray(child)) {return child.map(renderChild).join('');}
-    if (typeof child === 'object') {return child.value;}
+    if (typeof child === 'object') {
+        if ('__whiteLabelRawMarkup' in child || isJSXMarkup(child)) {return child.value;}
+        throw new TypeError('Unsupported JSX child object');
+    }
     return escapeText(String(child));
 }
 
@@ -70,12 +92,12 @@ function renderElement(type: string, props: Record<string, unknown>): string {
     return `<${type}${attributes}>${renderChild(children)}</${type}>`;
 }
 
-/** Automatic JSX runtime entry point. Output is an escaped HTML string accepted by View templates. */
-export function jsx(type: JSXType, props: Record<string, unknown> | null): string {
+/** Automatic JSX runtime entry point. Output remains distinguishable from plain text until the final render boundary. */
+export function jsx(type: JSXType, props: Record<string, unknown> | null): JSXMarkup {
     const values = props ?? {};
-    if (type === fragment) {return renderChild(values.children as JSXChild);}
-    if (typeof type === 'function') {return renderChild(type(values));}
-    return renderElement(type, values);
+    if (type === fragment) {return markup(renderChild(values.children as JSXChild));}
+    if (typeof type === 'function') {return markup(renderChild(type(values)));}
+    return markup(renderElement(type, values));
 }
 
 export const jsxs = jsx;
@@ -83,7 +105,7 @@ export const jsxDEV = jsx;
 export const Fragment = fragment;
 
 export namespace JSX {
-    export type Element = string;
+    export type Element = JSXMarkup;
     export interface IntrinsicElements {[name: string]: Record<string, unknown>}
     export interface ElementChildrenAttribute {children: Record<string, unknown>}
 }
