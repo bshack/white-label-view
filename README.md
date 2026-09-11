@@ -46,6 +46,67 @@ profileView.destroy();
 
 The `template` setting is only a JavaScript callback. `white-label-view` does not ship or require a template language. DOM construction is the safest default for untrusted data. If an application returns HTML strings, that markup is trusted caller input and must already be safely escaped or sanitized for its context.
 
+## Compatible templating engines
+
+`white-label-view` is intentionally template-engine agnostic. Any renderer that can be called from JavaScript and produce **one DOM element or one trusted single-root HTML string** can sit in front of View.
+
+Common choices include:
+
+- **Handlebars** — compile or precompile a template, then call it from the View `template` callback. Precompiled templates can use the smaller Handlebars runtime in the browser.
+- **Eta** — render an Eta template to a string and return it from the callback. This is the approach used by the White Label demo application for its static application markup.
+- **Mustache** — render a logic-light Mustache template to a single-root HTML string.
+- **Nunjucks** — render a Nunjucks template to a single-root HTML string when an application already uses Nunjucks in its browser/build stack.
+- **Plain JavaScript or TypeScript** — return a DOM element directly or construct a trusted HTML string without adding a template-engine dependency.
+
+Handlebars example:
+
+```js
+import Handlebars from 'handlebars/runtime';
+import View from 'white-label-view';
+import profileTemplate from './templates/profile.js'; // precompiled template
+
+const view = new View({
+    parentElement: document.querySelector('main'),
+    model,
+    template: data => profileTemplate(data)
+}).initialize();
+```
+
+Eta example:
+
+```js
+import {Eta} from 'eta';
+import View from 'white-label-view';
+
+const eta = new Eta();
+const source = '<section><h1>Hello, <%= it.name %></h1></section>';
+
+const view = new View({
+    parentElement: document.querySelector('main'),
+    model,
+    template: data => eta.renderString(source, data)
+}).initialize();
+```
+
+Mustache example:
+
+```js
+import Mustache from 'mustache';
+import View from 'white-label-view';
+
+const source = '<section><h1>Hello, {{name}}</h1></section>';
+
+const view = new View({
+    parentElement: document.querySelector('main'),
+    model,
+    template: data => Mustache.render(source, data)
+}).initialize();
+```
+
+These are integration examples, not dependencies or endorsements of a particular engine. Install and configure the chosen engine in the consuming application. View remains unaware of which renderer produced the result.
+
+The same View rules apply regardless of renderer: the final result must contain exactly one root element, and HTML-string output is trusted caller input. Use the chosen engine's escaping rules correctly and sanitize content when the application's trust boundary requires it.
+
 ## Rendering lifecycle
 
 `initialize()` calls synchronous `render()`.
