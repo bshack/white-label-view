@@ -203,7 +203,7 @@ class View {
     destroy() {
         this.cancelRender();
         this.owner?.releaseChild(this);
-        const ownerDocument = this.element.ownerDocument || this.parentElement?.ownerDocument || document;
+        const ownerDocument = this.element.ownerDocument!;
         try { this.releaseRoot(); } finally {
             this.destroyTwoWayBinding();
             this.element.parentNode?.removeChild(this.element);
@@ -267,7 +267,7 @@ class View {
         if (html !== undefined) {
             if (html === this.renderedTemplate && attached) return this.activateRoot();
             // Parse in the view's own document so iframe/multi-document consumers do not depend on globals.
-            const ownerDocument = this.element.ownerDocument || this.parentElement?.ownerDocument || document;
+            const ownerDocument = this.element.ownerDocument!;
             const template = ownerDocument.createElement('template');
             template.innerHTML = html.trim();
             const content = template.content;
