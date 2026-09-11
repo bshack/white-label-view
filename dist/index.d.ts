@@ -1,3 +1,4 @@
+import type { JSXMarkup } from './jsx-runtime.js';
 /** Data source consumed by the rendering lifecycle. */
 interface ViewModel {
     get?: () => unknown;
@@ -9,7 +10,7 @@ interface ViewSettings {
     parentElement?: Element;
     element?: Element;
     model?: object & ViewModel;
-    template?: (data: unknown) => string | Node;
+    template?: (data: unknown) => string | Node | JSXMarkup;
     update?: (element: Node, data: unknown) => boolean;
     /** Coalesce model changes into one animation frame; manual render() stays synchronous. */
     batchUpdates?: boolean;
@@ -43,7 +44,7 @@ declare class DelegatedEvents {
 declare class View {
     parentElement?: Element;
     element: Node;
-    template?: (data: unknown) => string | Node;
+    template?: (data: unknown) => string | Node | JSXMarkup;
     /** Override to update the attached root in place; false uses the template fallback. */
     update(_element: Node, _data: unknown): boolean;
     batchUpdates: boolean;

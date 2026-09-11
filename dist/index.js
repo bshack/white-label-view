@@ -1,4 +1,5 @@
 "use strict";
+const jsx_runtime_js_1 = require("./jsx-runtime.js");
 /** Native event delegation scoped to a view root. */
 class DelegatedEvents {
     scope;
@@ -261,12 +262,12 @@ class View {
             return this.activateRoot();
         }
         let newElement = this.template(data);
-        const html = typeof newElement === 'string' ? newElement : undefined;
+        const html = (0, jsx_runtime_js_1.isJSXMarkup)(newElement) ? newElement.value : typeof newElement === 'string' ? newElement : undefined;
         if (html !== undefined) {
             if (html === this.renderedTemplate && attached) {
                 return this.activateRoot();
             }
-            // Parse in the view's own document so iframe/multi-document consumers do not depend on globals.
+            // Parse in the view's own document so iframe/multi-document views do not depend on globals.
             const ownerDocument = this.element.ownerDocument;
             const template = ownerDocument.createElement('template');
             template.innerHTML = html.trim();
