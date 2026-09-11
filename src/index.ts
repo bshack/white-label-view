@@ -33,7 +33,7 @@ class DelegatedEvents {
     /** Register a matching listener. once is consumed only by a matching event. */
     on(type: string, selector: string, callback: DelegatedCallback, options: boolean | AddEventListenerOptions = {}) {
         const settings = typeof options === 'boolean' ? {capture: options} : options;
-        if (settings.signal?.aborted) return this;
+        if (settings.signal?.aborted) {return this;}
         const once = Boolean(settings.once);
         const registered: Registration = {
             type, selector, callback, capture: Boolean(settings.capture), signal: settings.signal,
@@ -43,7 +43,7 @@ class DelegatedEvents {
                     ? (event.target as Element).closest(selector) : null;
                 if (target && (target === this.scope || this.scope.contains(target))) {
                     // Remove before invocation so recursive dispatch cannot invoke a once listener twice.
-                    if (once) this.remove(registered);
+                    if (once) {this.remove(registered);}
                     callback.call(target, event);
                 }
             }
@@ -61,7 +61,7 @@ class DelegatedEvents {
             const matches = registered.type === type && (!selector || registered.selector === selector) &&
                 (!callback || registered.callback === callback) &&
                 (capture === undefined || registered.capture === capture);
-            if (matches) this.detach(registered);
+            if (matches) {this.detach(registered);}
             return !matches;
         });
         return this;
@@ -82,7 +82,7 @@ class DelegatedEvents {
     clear() {
         const registrations = this.listeners;
         this.listeners = [];
-        for (const registered of registrations) this.detach(registered);
+        for (const registered of registrations) {this.detach(registered);}
         return this;
     }
 }
@@ -112,8 +112,8 @@ class View {
         const ownerDocument = settings?.element?.ownerDocument || settings?.parentElement?.ownerDocument || document;
         this.element = settings?.element || ownerDocument.createElement('div');
         // Only explicit settings override subclass prototype hooks.
-        if (settings?.template) this.template = settings.template;
-        if (settings?.update) this.update = settings.update;
+        if (settings?.template) {this.template = settings.template;}
+        if (settings?.update) {this.update = settings.update;}
         this.currentModel = settings?.model;
         this.batchUpdates = settings?.batchUpdates === true;
         this.modelChangeHandler = () => this.requestRender();
@@ -124,11 +124,11 @@ class View {
 
     /** Assignment moves an active subscription; use setModel() to render the new data immediately. */
     set model(value: (object & ViewModel) | undefined) {
-        if (value === this.currentModel) return;
+        if (value === this.currentModel) {return;}
         const rebind = this.modelBindingInitialized;
         this.destroyModelBinding();
         this.currentModel = value;
-        if (rebind) this.initializeModelBinding();
+        if (rebind) {this.initializeModelBinding();}
     }
 
     /** Replace the model and synchronously render its current data. */
@@ -142,7 +142,7 @@ class View {
     /** Coalesce automatic updates when enabled, falling back to synchronous rendering without RAF. */
     requestRender() {
         const window = this.element.ownerDocument?.defaultView;
-        if (!this.batchUpdates || !window?.requestAnimationFrame) return this.render();
+        if (!this.batchUpdates || !window?.requestAnimationFrame) {return this.render();}
         if (this.pendingFrame === undefined) {
             this.frameWindow = window;
             this.pendingFrame = window.requestAnimationFrame(() => {
@@ -165,9 +165,9 @@ class View {
     /** Register ownership without mounting the child. Owned children are destroyed on root replacement. */
     addChild(child: View) {
         for (let ancestor: View | undefined = this; ancestor; ancestor = ancestor.owner) {
-            if (ancestor === child) throw new TypeError('Child view ownership must not contain cycles');
+            if (ancestor === child) {throw new TypeError('Child view ownership must not contain cycles');}
         }
-        if (child.owner && child.owner !== this) throw new TypeError('Child view already has an owner');
+        if (child.owner && child.owner !== this) {throw new TypeError('Child view already has an owner');}
         this.children.add(child);
         child.owner = this;
         return this;
@@ -175,7 +175,7 @@ class View {
 
     /** Relinquish ownership without destroying the child. */
     releaseChild(child: View) {
-        if (this.children.delete(child)) child.owner = undefined;
+        if (this.children.delete(child)) {child.owner = undefined;}
         return this;
     }
 
@@ -186,7 +186,7 @@ class View {
             this.releaseChild(child);
             try { child.destroy(); } catch (error) { errors.push(error); }
         }
-        if (errors.length) throw new AggregateError(errors, 'Unable to destroy child views');
+        if (errors.length) {throw new AggregateError(errors, 'Unable to destroy child views');}
     }
 
     /** Release listeners and owned children even if a subclass cleanup hook throws. */
@@ -216,7 +216,7 @@ class View {
 
     /** Subscribe once; observable models must expose a matching removal method. */
     initializeModelBinding() {
-        if (this.boundModel !== this.model) this.destroyModelBinding();
+        if (this.boundModel !== this.model) {this.destroyModelBinding();}
         if (!this.modelBindingInitialized && this.model &&
             typeof this.model.on === 'function' && typeof this.model.removeListener === 'function') {
             this.boundModel = this.model;
@@ -228,7 +228,7 @@ class View {
     /** Remove the subscription from the emitter originally bound and cancel queued rendering. */
     destroyModelBinding() {
         this.cancelRender();
-        if (this.modelBindingInitialized) this.boundModel!.removeListener!('change', this.modelChangeHandler);
+        if (this.modelBindingInitialized) {this.boundModel!.removeListener!('change', this.modelChangeHandler);}
         this.boundModel = undefined;
         this.modelBindingInitialized = false;
     }
@@ -256,7 +256,7 @@ class View {
     render() {
         this.cancelRender();
         const attached = this.parentElement?.contains(this.element);
-        if (typeof this.template !== 'function') return attached ? this.activateRoot() : this;
+        if (typeof this.template !== 'function') {return attached ? this.activateRoot() : this;}
         const data = this.model && typeof this.model.get === 'function' ? this.model.get() : this.model || {};
         if (attached && this.update(this.element, data)) {
             this.renderedTemplate = undefined;
@@ -265,7 +265,7 @@ class View {
         let newElement = this.template(data);
         const html = typeof newElement === 'string' ? newElement : undefined;
         if (html !== undefined) {
-            if (html === this.renderedTemplate && attached) return this.activateRoot();
+            if (html === this.renderedTemplate && attached) {return this.activateRoot();}
             // Parse in the view's own document so iframe/multi-document consumers do not depend on globals.
             const ownerDocument = this.element.ownerDocument!;
             const template = ownerDocument.createElement('template');
@@ -280,14 +280,14 @@ class View {
         if (!root || root.nodeType !== 1) {
             throw new TypeError('The view template must return exactly one root node (an element)');
         }
-        if (!this.parentElement) return this;
+        if (!this.parentElement) {return this;}
         if (attached && this.element.isEqualNode(root)) {
             this.renderedTemplate = html;
             return this.activateRoot();
         }
         this.releaseRoot();
-        if (attached) this.element.parentNode!.replaceChild(root, this.element);
-        else this.parentElement.appendChild(root);
+        if (attached) {this.element.parentNode!.replaceChild(root, this.element);}
+        else {this.parentElement.appendChild(root);}
         this.element = root;
         this.delegated = this.delegate();
         this.renderedTemplate = html;
