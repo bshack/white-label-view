@@ -109,7 +109,8 @@ class View {
 
     constructor(settings?: ViewSettings) {
         this.parentElement = settings?.parentElement;
-        this.element = settings?.element || document.createElement('div');
+        const ownerDocument = settings?.element?.ownerDocument || settings?.parentElement?.ownerDocument || document;
+        this.element = settings?.element || ownerDocument.createElement('div');
         // Only explicit settings override subclass prototype hooks.
         if (settings?.template) this.template = settings.template;
         if (settings?.update) this.update = settings.update;
@@ -202,10 +203,11 @@ class View {
     destroy() {
         this.cancelRender();
         this.owner?.releaseChild(this);
+        const ownerDocument = this.element.ownerDocument!;
         try { this.releaseRoot(); } finally {
             this.destroyTwoWayBinding();
             this.element.parentNode?.removeChild(this.element);
-            this.element = document.createElement('div');
+            this.element = ownerDocument.createElement('div');
             this.delegated = this.delegate();
             this.renderedTemplate = undefined;
         }
@@ -264,11 +266,15 @@ class View {
         const html = typeof newElement === 'string' ? newElement : undefined;
         if (html !== undefined) {
             if (html === this.renderedTemplate && attached) return this.activateRoot();
-            const body = new DOMParser().parseFromString(html.trim(), 'text/html').body;
-            if (body.childNodes.length !== 1 || body.firstChild!.nodeType !== 1) {
+            // Parse in the view's own document so iframe/multi-document consumers do not depend on globals.
+            const ownerDocument = this.element.ownerDocument!;
+            const template = ownerDocument.createElement('template');
+            template.innerHTML = html.trim();
+            const content = template.content;
+            if (content.childNodes.length !== 1 || content.firstChild!.nodeType !== 1) {
                 throw new TypeError('The view template must return exactly one root node (an element)');
             }
-            newElement = body.firstChild!;
+            newElement = content.firstChild!;
         }
         const root = newElement as Node;
         if (!root || root.nodeType !== 1) {
