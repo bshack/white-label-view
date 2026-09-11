@@ -1,3 +1,6 @@
+import {isJSXMarkup} from './jsx-runtime.js';
+import type {JSXMarkup} from './jsx-runtime.js';
+
 /** Data source consumed by the rendering lifecycle. */
 interface ViewModel {
     get?: () => unknown;
@@ -9,7 +12,7 @@ interface ViewSettings {
     parentElement?: Element;
     element?: Element;
     model?: object & ViewModel;
-    template?: (data: unknown) => string | Node;
+    template?: (data: unknown) => string | Node | JSXMarkup;
     update?: (element: Node, data: unknown) => boolean;
     /** Coalesce model changes into one animation frame; manual render() stays synchronous. */
     batchUpdates?: boolean;
@@ -91,7 +94,7 @@ class DelegatedEvents {
 class View {
     parentElement?: Element;
     element: Node;
-    declare template?: (data: unknown) => string | Node;
+    declare template?: (data: unknown) => string | Node | JSXMarkup;
     /** Override to update the attached root in place; false uses the template fallback. */
     update(_element: Node, _data: unknown): boolean { return false; }
     batchUpdates: boolean;
@@ -263,10 +266,10 @@ class View {
             return this.activateRoot();
         }
         let newElement = this.template(data);
-        const html = typeof newElement === 'string' ? newElement : undefined;
+        const html = isJSXMarkup(newElement) ? newElement.value : typeof newElement === 'string' ? newElement : undefined;
         if (html !== undefined) {
             if (html === this.renderedTemplate && attached) {return this.activateRoot();}
-            // Parse in the view's own document so iframe/multi-document consumers do not depend on globals.
+            // Parse in the view's own document so iframe/multi-document views do not depend on globals.
             const ownerDocument = this.element.ownerDocument!;
             const template = ownerDocument.createElement('template');
             template.innerHTML = html.trim();
