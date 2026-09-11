@@ -13,16 +13,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 24.21.0
           cache: npm
       - name: Refresh dependency metadata
         run: npm install --package-lock-only --ignore-scripts
       - run: npm ci --ignore-scripts
+      - run: npm run lint
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
@@ -35,9 +36,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run coverage
-      - run: npm audit --audit-level=high
+      - run: npm run audit
 
-  # Same-repository PRs may persist lockfile/compiler output after verification passes.
   sync-generated-files:
     needs: test-build-audit
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
@@ -46,16 +46,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           persist-credentials: true
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 24.21.0
           cache: npm
       - run: npm install --package-lock-only --ignore-scripts
       - run: npm ci --ignore-scripts
+      - run: npm run lint
       - run: npm run build
       - name: Commit generated files when needed
         shell: bash
