@@ -45,7 +45,11 @@ function escapeAttribute(value: string): string {
 
 function renderChild(child: JSXChild): string {
     if (child === null || child === undefined || child === false || child === true) {return '';}
-    if (Array.isArray(child)) {return child.map(renderChild).join('');}
+    if (Array.isArray(child)) {
+        let rendered = '';
+        for (const entry of child) {rendered += renderChild(entry);}
+        return rendered;
+    }
     if (typeof child === 'object') {
         if ('__whiteLabelRawMarkup' in child || isJSXMarkup(child)) {return child.value;}
         throw new TypeError('Unsupported JSX child object');
@@ -60,10 +64,13 @@ function attributeName(name: string): string {
 }
 
 function renderStyle(value: Record<string, unknown>): string {
-    return Object.entries(value)
-        .filter(([, entry]) => entry !== null && entry !== undefined && entry !== false)
-        .map(([name, entry]) => `${name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}:${String(entry)}`)
-        .join(';');
+    let rendered = '';
+    for (const [name, entry] of Object.entries(value)) {
+        if (entry === null || entry === undefined || entry === false) {continue;}
+        if (rendered) {rendered += ';';}
+        rendered += `${name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}:${String(entry)}`;
+    }
+    return rendered;
 }
 
 function renderAttribute(name: string, value: unknown): string {
@@ -84,10 +91,10 @@ function renderAttribute(name: string, value: unknown): string {
 
 function renderElement(type: string, props: Record<string, unknown>): string {
     const children = props.children as JSXChild;
-    const attributes = Object.entries(props)
-        .filter(([name]) => name !== 'children')
-        .map(([name, value]) => renderAttribute(name, value))
-        .join('');
+    let attributes = '';
+    for (const [name, value] of Object.entries(props)) {
+        if (name !== 'children') {attributes += renderAttribute(name, value);}
+    }
     if (voidElements.has(type.toLowerCase())) {return `<${type}${attributes}>`;}
     return `<${type}${attributes}>${renderChild(children)}</${type}>`;
 }
