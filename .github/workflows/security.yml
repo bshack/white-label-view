@@ -38,6 +38,23 @@ jobs:
       - run: npm run coverage
       - run: npm run audit
       - run: npm pack --dry-run
+      - name: Verify packed install
+        run: |
+          PACKAGE="$(npm pack --silent)"
+          TEMP="$(mktemp -d)"
+          cd "$TEMP"
+          npm init -y >/dev/null
+          npm install --ignore-scripts "$GITHUB_WORKSPACE/$PACKAGE" >/dev/null
+          node - <<'NODE'
+          const View = require('white-label-view');
+          const ServerView = require('white-label-view/server');
+          const jsxRuntime = require('white-label-view/jsx-runtime');
+          const jsxDevRuntime = require('white-label-view/jsx-dev-runtime');
+          if (typeof View !== 'function' || typeof ServerView !== 'function' ||
+              typeof jsxRuntime.jsx !== 'function' || typeof jsxRuntime.jsxs !== 'function' ||
+              typeof jsxDevRuntime.jsxDEV !== 'function') process.exit(1);
+          NODE
+          rm "$GITHUB_WORKSPACE/$PACKAGE"
 
   sync-generated-files:
     needs: test-build-audit
