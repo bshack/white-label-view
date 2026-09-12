@@ -11,11 +11,7 @@ The package includes an optional, framework-independent JSX runtime but intentio
 
 ## Versioning policy
 
-Backward compatibility is not maintained through aliases, deprecated method names, fallback signatures, or other runtime shims. Breaking public API changes are communicated with a Semantic Versioning major release and documented migration notes.
-
-### Version 5 migration
-
-The historically named `initializeTwoWayBinding()` and `destroyTwoWayBinding()` methods have been removed. The binding has always been one-way; use `initializeModelBinding()` and `destroyModelBinding()` instead. No compatibility aliases are provided.
+Backward compatibility is not maintained through aliases, deprecated method names, fallback signatures, or other runtime shims. Breaking public API changes are communicated with a Semantic Versioning major release and release notes outside this README.
 
 ## Install
 
@@ -75,10 +71,10 @@ Then use `.tsx` templates normally:
 import View from 'white-label-view';
 import {Model} from 'white-label-model';
 
-interface Profile {
+type Profile = {
     name: string;
     count: number;
-}
+};
 
 const model = new Model<Profile>({name: 'Ada', count: 1});
 
@@ -99,7 +95,7 @@ const view = new View({
 
 JSX child text and attribute values are escaped by default. Fragments, arrays of children, function components, standard boolean attributes, `className`, `htmlFor`, and style objects are supported. Intrinsic event-handler attributes such as `onClick` are intentionally not serialized; use View's delegated event lifecycle instead.
 
-For the uncommon case where markup has already been independently trusted or sanitized, `raw()` is an explicit escape hatch:
+For markup that has already been independently trusted or sanitized, `raw()` is an explicit escape hatch:
 
 ```tsx
 import {raw} from 'white-label-view/jsx-runtime';
@@ -109,68 +105,13 @@ const template = () => <section>{raw('<strong>Trusted markup</strong>')}</sectio
 
 Never pass untrusted user content to `raw()`. Ordinary JSX expressions already escape strings correctly.
 
-JSX is additive. Existing DOM-node templates and string templates remain supported, and View does not require JSX for consumers that prefer another renderer.
+DOM-node templates and string templates are also supported. View does not require JSX when a consuming application uses another renderer.
 
 ## Compatible templating engines
 
-`white-label-view` remains template-engine agnostic. Any renderer that can be called from JavaScript and produce **one DOM element or one trusted single-root HTML string** can sit in front of View. The built-in JSX runtime is the dependency-free first-party option.
+`white-label-view` is template-engine agnostic. Any renderer that can be called from JavaScript and produce **one DOM element or one trusted single-root HTML string** can sit in front of View. The built-in JSX runtime is the dependency-free first-party option.
 
-Other choices include:
-
-- **Handlebars** — compile or precompile a template, then call it from the View `template` callback. Precompiled templates can use the smaller Handlebars runtime in the browser.
-- **Eta** — render an Eta template to a string and return it from the callback.
-- **Mustache** — render a logic-light Mustache template to a single-root HTML string.
-- **Nunjucks** — render a Nunjucks template to a single-root HTML string when an application already uses Nunjucks in its browser/build stack.
-- **Plain JavaScript or TypeScript** — return a DOM element directly or construct a trusted HTML string without adding a template-engine dependency.
-
-Handlebars example:
-
-```js
-import Handlebars from 'handlebars/runtime';
-import View from 'white-label-view';
-import profileTemplate from './templates/profile.js';
-
-const view = new View({
-    parentElement: document.querySelector('main'),
-    model,
-    template: data => profileTemplate(data)
-}).initialize();
-```
-
-Eta example:
-
-```js
-import {Eta} from 'eta';
-import View from 'white-label-view';
-
-const eta = new Eta();
-const source = '<section><h1>Hello, <%= it.name %></h1></section>';
-
-const view = new View({
-    parentElement: document.querySelector('main'),
-    model,
-    template: data => eta.renderString(source, data)
-}).initialize();
-```
-
-Mustache example:
-
-```js
-import Mustache from 'mustache';
-import View from 'white-label-view';
-
-const source = '<section><h1>Hello, {{name}}</h1></section>';
-
-const view = new View({
-    parentElement: document.querySelector('main'),
-    model,
-    template: data => Mustache.render(source, data)
-}).initialize();
-```
-
-These are integration examples, not package dependencies or endorsements. Install and configure an external engine in the consuming application when needed. View remains unaware of which external renderer produced the result.
-
-The same View rule applies regardless of renderer: the final result must contain exactly one root element. HTML-string output is trusted caller input; use the chosen renderer's escaping rules correctly and sanitize content when the application's trust boundary requires it.
+External renderers such as Handlebars, Eta, Mustache, Nunjucks, or application-specific JavaScript can be used by calling them inside the `template` callback. They are not package dependencies. The final result must contain exactly one root element, and HTML-string output remains trusted caller input.
 
 ## Rendering lifecycle
 
@@ -189,7 +130,7 @@ Equal HTML/JSX output skips reparsing while attached. Equal DOM trees preserve t
 
 Render callbacks must resolve to exactly one element. Empty strings, text nodes, comments, multiple roots, top-level JSX fragments with multiple elements, `null`, and other non-element results throw `TypeError`. Invalid output does not replace the last successful root.
 
-String and JSX roots are parsed with a temporary `<template>` in the view's owning document. This avoids a global parser dependency and keeps iframe or multi-document views in the correct document.
+String and JSX roots are parsed with a temporary `<template>` in the view's owning document, keeping iframe or multi-document views in the correct document.
 
 ## Constructor settings
 
@@ -251,9 +192,7 @@ export default class MenuView extends View {
 
 Delegation uses native `addEventListener()` and `closest()`. `on(type, selector, callback, options)` accepts a capture boolean or normal listener options including `capture`, `passive`, `signal`, and `once`. A `once` registration is consumed only after a matching delegated event. Aborting a supplied signal removes both the native registration and the registry reference. `off()` can filter by type, selector, callback, and capture phase. `clear()` removes all registrations.
 
-The matching element is the callback's `this` value.
-
-Independent registries created with `delegate(scope)` are caller-owned; call their `clear()` method when they are no longer needed. The view-owned `delegated` registry is cleared automatically when the root is replaced or destroyed.
+The matching element is the callback's `this` value. Independent registries created with `delegate(scope)` are caller-owned and should be cleared when no longer needed. The view-owned `delegated` registry is cleared automatically when the root is replaced or destroyed.
 
 ## In-place updates and focus preservation
 
@@ -326,7 +265,7 @@ npm run coverage
 npm run audit
 ```
 
-Coverage is enforced at 100% for statements, branches, functions, and lines in every implementation file. CI also refreshes dependency metadata, builds tracked `dist`, runs the complete test/type/coverage/audit suite, uploads generated files, and verifies that committed `package-lock.json` and `dist` match generated output.
+Coverage is enforced at 100% for statements, branches, functions, and lines in every implementation file. CI refreshes dependency metadata, builds tracked `dist`, runs the complete test/type/coverage/audit suite, and verifies that committed generated output matches the build.
 
 Edit `src/*.ts`, not generated `dist` files. The npm package publishes `dist` and this README.
 
