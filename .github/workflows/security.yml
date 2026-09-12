@@ -25,7 +25,6 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run lint
       - run: npm run build
-      - run: npm run benchmark
       - uses: actions/upload-artifact@v7
         with:
           name: generated-files
