@@ -1,7 +1,7 @@
 {
   "name": "white-label-view",
   "version": "5.1.0",
-  "description": "A simple ES6 JS view.",
+  "description": "A small browser view lifecycle with model updates, delegated events, batching, child ownership, and optional JSX.",
   "main": "dist/index.js",
   "files": [
     "dist",
@@ -23,13 +23,13 @@
     "url": "git+https://github.com/bshack/white-label-view.git"
   },
   "keywords": [
-    "js",
     "javascript",
+    "typescript",
     "view",
     "jsx",
-    "es6",
-    "es2015",
-    "delegate"
+    "dom",
+    "delegated-events",
+    "progressive-enhancement"
   ],
   "author": "bshack",
   "license": "MIT",
