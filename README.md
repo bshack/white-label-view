@@ -319,6 +319,7 @@ view.destroy();
 ```sh
 npm ci --ignore-scripts
 npm run build
+npm run lint
 npm run typecheck
 npm test
 npm run coverage
