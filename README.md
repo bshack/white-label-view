@@ -4,6 +4,8 @@
 
 The package includes an optional, framework-independent JSX runtime but intentionally does **not** bundle React, Preact, a CSS framework, component framework, sanitizer, or state library. Styling and higher-level rendering choices remain in the consuming application.
 
+The package can be installed and used independently; it has no runtime dependency on the other White Label packages.
+
 ## Requirements
 
 - Node.js `^22.18.0` or `>=24.11.0` for installation, development, and server rendering.
