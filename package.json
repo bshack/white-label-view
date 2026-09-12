@@ -1,7 +1,7 @@
 {
   "name": "white-label-view",
   "version": "5.1.0",
-  "description": "A small view lifecycle with browser DOM rendering, server string rendering, model updates, child ownership, and optional JSX.",
+  "description": "A browser/Node view lifecycle with DOM rendering, server string rendering, model updates, child ownership, and optional JSX.",
   "main": "dist/index.js",
   "files": [
     "dist",
@@ -29,8 +29,13 @@
     "jsx",
     "dom",
     "server-rendering",
+    "ssr",
     "delegated-events",
-    "progressive-enhancement"
+    "progressive-enhancement",
+    "browser",
+    "node",
+    "server-side",
+    "universal"
   ],
   "author": "bshack",
   "license": "MIT",
