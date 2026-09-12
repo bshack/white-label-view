@@ -27,4 +27,10 @@ const listenerOptions: View.ListenerOptions = {signal: controller.signal};
 void listenerOptions;
 // @ts-expect-error batching is explicitly boolean.
 const invalid: View.Settings = {batchUpdates: 'always'};
-void invalid;
+// @ts-expect-error templates must return renderable markup, not arbitrary objects.
+const invalidTemplate: View.Settings = {template: () => ({message: 'hello'})};
+// @ts-expect-error models must be object-like data sources.
+profile.setModel('Ada');
+// @ts-expect-error child ownership only accepts View instances.
+profile.addChild(document.body);
+void [invalid, invalidTemplate];
