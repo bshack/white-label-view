@@ -1,7 +1,7 @@
 {
   "name": "white-label-view",
   "version": "5.1.0",
-  "description": "A small browser view lifecycle with model updates, delegated events, batching, child ownership, and optional JSX.",
+  "description": "A small view lifecycle with browser DOM rendering, server string rendering, model updates, child ownership, and optional JSX.",
   "main": "dist/index.js",
   "files": [
     "dist",
@@ -28,6 +28,7 @@
     "view",
     "jsx",
     "dom",
+    "server-rendering",
     "delegated-events",
     "progressive-enhancement"
   ],
@@ -88,6 +89,11 @@
       "types": "./dist/index.d.ts",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "require": "./dist/server.js",
+      "default": "./dist/server.js"
     },
     "./jsx-runtime": {
       "types": "./dist/jsx-runtime.d.ts",
