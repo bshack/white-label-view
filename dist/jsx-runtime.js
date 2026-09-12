@@ -38,7 +38,11 @@ function renderChild(child) {
         return '';
     }
     if (Array.isArray(child)) {
-        return child.map(renderChild).join('');
+        let rendered = '';
+        for (const entry of child) {
+            rendered += renderChild(entry);
+        }
+        return rendered;
     }
     if (typeof child === 'object') {
         if ('__whiteLabelRawMarkup' in child || isJSXMarkup(child)) {
@@ -58,10 +62,17 @@ function attributeName(name) {
     return name;
 }
 function renderStyle(value) {
-    return Object.entries(value)
-        .filter(([, entry]) => entry !== null && entry !== undefined && entry !== false)
-        .map(([name, entry]) => `${name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}:${String(entry)}`)
-        .join(';');
+    let rendered = '';
+    for (const [name, entry] of Object.entries(value)) {
+        if (entry === null || entry === undefined || entry === false) {
+            continue;
+        }
+        if (rendered) {
+            rendered += ';';
+        }
+        rendered += `${name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}:${String(entry)}`;
+    }
+    return rendered;
 }
 function renderAttribute(name, value) {
     const renderedName = attributeName(name);
@@ -84,10 +95,12 @@ function renderAttribute(name, value) {
 }
 function renderElement(type, props) {
     const children = props.children;
-    const attributes = Object.entries(props)
-        .filter(([name]) => name !== 'children')
-        .map(([name, value]) => renderAttribute(name, value))
-        .join('');
+    let attributes = '';
+    for (const [name, value] of Object.entries(props)) {
+        if (name !== 'children') {
+            attributes += renderAttribute(name, value);
+        }
+    }
     if (voidElements.has(type.toLowerCase())) {
         return `<${type}${attributes}>`;
     }
