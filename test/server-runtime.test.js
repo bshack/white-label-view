@@ -105,6 +105,13 @@ test('server view continues child cleanup and reports aggregate failures', t => 
         return true;
     });
     assert.equal(secondDestroyed, true);
+
+    const owner = new View();
+    const owned = new View();
+    owner.addChild(owned);
+    assert.equal(owned.destroy(), owned);
+    // Destroying an owned child must release it so it can be owned again.
+    assert.equal(owner.addChild(owned), owner);
 });
 
 test('server view rejects DOM-like or unsupported template results', t => {
