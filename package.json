@@ -1,6 +1,6 @@
 {
   "name": "white-label-view",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "A simple ES6 JS view.",
   "main": "dist/index.js",
   "files": [
@@ -24,8 +24,9 @@
   },
   "keywords": [
     "js",
-    "javacript",
+    "javascript",
     "view",
+    "jsx",
     "es6",
     "es2015",
     "delegate"
@@ -87,6 +88,16 @@
       "types": "./dist/index.d.ts",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "require": "./dist/jsx-runtime.js",
+      "default": "./dist/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "require": "./dist/jsx-runtime.js",
+      "default": "./dist/jsx-runtime.js"
     }
   },
   "packageManager": "npm@11.19.1"

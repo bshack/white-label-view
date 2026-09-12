@@ -2,7 +2,7 @@
 
 `white-label-view` is a small browser view class focused on DOM rendering, model-driven updates, delegated events, batching, child-view ownership, and lifecycle cleanup.
 
-The package intentionally does **not** bundle a templating engine, CSS framework, component framework, sanitizer, or state library. A view receives a plain render function that returns either one DOM element or one trusted HTML root string. Styling and any higher-level rendering tools belong to the consuming application.
+The package includes an optional, framework-independent JSX runtime but intentionally does **not** bundle React, Preact, a CSS framework, component framework, sanitizer, or state library. A view receives a render function that can return one DOM element, one trusted HTML root string, or JSX produced by the White Label runtime. Styling and higher-level rendering choices remain in the consuming application.
 
 ## Requirements
 
@@ -52,16 +52,73 @@ model.update({name: 'Grace'});
 profileView.destroy();
 ```
 
-The `template` setting is only a JavaScript callback. `white-label-view` does not ship or require a template language. DOM construction is the safest default for untrusted data. If an application returns HTML strings, that markup is trusted caller input and must already be safely escaped or sanitized for its context.
+DOM construction remains the safest default when a consuming application needs direct control over untrusted data. If an application returns an HTML string, that string is trusted caller input and must already be safely escaped or sanitized for its context.
+
+## JSX templating
+
+White Label View ships an automatic JSX runtime at `white-label-view/jsx-runtime`. It renders JSX to escaped markup understood directly by `View`, with no React or Preact dependency.
+
+Configure TypeScript with:
+
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "white-label-view"
+  }
+}
+```
+
+Then use `.tsx` templates normally:
+
+```tsx
+import View from 'white-label-view';
+import {Model} from 'white-label-model';
+
+interface Profile {
+    name: string;
+    count: number;
+}
+
+const model = new Model<Profile>({name: 'Ada', count: 1});
+
+const view = new View({
+    parentElement: document.querySelector('main')!,
+    model,
+    template(data) {
+        const profile = data as Profile;
+        return (
+            <section className="profile">
+                <h1>Hello, {profile.name}</h1>
+                <p>Count: {profile.count}</p>
+            </section>
+        );
+    }
+}).initialize();
+```
+
+JSX child text and attribute values are escaped by default. Fragments, arrays of children, function components, standard boolean attributes, `className`, `htmlFor`, and style objects are supported. Intrinsic event-handler attributes such as `onClick` are intentionally not serialized; use View's delegated event lifecycle instead.
+
+For the uncommon case where markup has already been independently trusted or sanitized, `raw()` is an explicit escape hatch:
+
+```tsx
+import {raw} from 'white-label-view/jsx-runtime';
+
+const template = () => <section>{raw('<strong>Trusted markup</strong>')}</section>;
+```
+
+Never pass untrusted user content to `raw()`. Ordinary JSX expressions already escape strings correctly.
+
+JSX is additive. Existing DOM-node templates and string templates remain supported, and View does not require JSX for consumers that prefer another renderer.
 
 ## Compatible templating engines
 
-`white-label-view` is intentionally template-engine agnostic. Any renderer that can be called from JavaScript and produce **one DOM element or one trusted single-root HTML string** can sit in front of View.
+`white-label-view` remains template-engine agnostic. Any renderer that can be called from JavaScript and produce **one DOM element or one trusted single-root HTML string** can sit in front of View. The built-in JSX runtime is the dependency-free first-party option.
 
-Common choices include:
+Other choices include:
 
 - **Handlebars** — compile or precompile a template, then call it from the View `template` callback. Precompiled templates can use the smaller Handlebars runtime in the browser.
-- **Eta** — render an Eta template to a string and return it from the callback. This is the approach used by the White Label demo application for its static application markup.
+- **Eta** — render an Eta template to a string and return it from the callback.
 - **Mustache** — render a logic-light Mustache template to a single-root HTML string.
 - **Nunjucks** — render a Nunjucks template to a single-root HTML string when an application already uses Nunjucks in its browser/build stack.
 - **Plain JavaScript or TypeScript** — return a DOM element directly or construct a trusted HTML string without adding a template-engine dependency.
@@ -71,7 +128,7 @@ Handlebars example:
 ```js
 import Handlebars from 'handlebars/runtime';
 import View from 'white-label-view';
-import profileTemplate from './templates/profile.js'; // precompiled template
+import profileTemplate from './templates/profile.js';
 
 const view = new View({
     parentElement: document.querySelector('main'),
@@ -111,9 +168,9 @@ const view = new View({
 }).initialize();
 ```
 
-These are integration examples, not dependencies or endorsements of a particular engine. Install and configure the chosen engine in the consuming application. View remains unaware of which renderer produced the result.
+These are integration examples, not package dependencies or endorsements. Install and configure an external engine in the consuming application when needed. View remains unaware of which external renderer produced the result.
 
-The same View rules apply regardless of renderer: the final result must contain exactly one root element, and HTML-string output is trusted caller input. Use the chosen engine's escaping rules correctly and sanitize content when the application's trust boundary requires it.
+The same View rule applies regardless of renderer: the final result must contain exactly one root element. HTML-string output is trusted caller input; use the chosen renderer's escaping rules correctly and sanitize content when the application's trust boundary requires it.
 
 ## Rendering lifecycle
 
@@ -128,11 +185,11 @@ A successful mount or replacement:
 3. calls `addListeners()` once for that root;
 4. calls `afterMount()` once for that root.
 
-Equal HTML strings skip reparsing while attached. Equal DOM trees preserve the existing root. Existing markup can also be adopted when the supplied `element` is already within `parentElement`.
+Equal HTML/JSX output skips reparsing while attached. Equal DOM trees preserve the existing root. Existing markup can also be adopted when the supplied `element` is already within `parentElement`.
 
-Render callbacks must return exactly one element. Empty strings, text nodes, comments, multiple roots, fragments, `null`, and other non-element results throw `TypeError`. Invalid output does not replace the last successful root.
+Render callbacks must resolve to exactly one element. Empty strings, text nodes, comments, multiple roots, top-level JSX fragments with multiple elements, `null`, and other non-element results throw `TypeError`. Invalid output does not replace the last successful root.
 
-String roots are parsed with a temporary `<template>` in the view's owning document. This avoids a global parser dependency, reduces parser setup, and keeps iframe or multi-document views in the correct document.
+String and JSX roots are parsed with a temporary `<template>` in the view's owning document. This avoids a global parser dependency and keeps iframe or multi-document views in the correct document.
 
 ## Constructor settings
 
@@ -141,7 +198,7 @@ String roots are parsed with a temporary `<template>` in the view's owning docum
 | `parentElement` | DOM element that receives or contains the root. |
 | `element` | Existing root element. Defaults to a new `div` in the owning document. |
 | `model` | Plain data object or an object with optional `get()`, `on()`, and `removeListener()` methods. |
-| `template` | Function receiving model data and returning one DOM node or one trusted single-root HTML string. |
+| `template` | Function receiving model data and returning one DOM node, one trusted single-root HTML string, or White Label JSX output. |
 | `update` | Optional in-place update hook. Return `true` when handled or `false` to use normal rendering. |
 | `batchUpdates` | When `true`, coalesce automatic model updates into one animation frame. Manual `render()` stays synchronous. |
 
@@ -255,7 +312,7 @@ const view = new View(settings).initialize();
 view.destroy();
 ```
 
-`View.Settings`, `View.Model`, and `View.ListenerOptions` expose the supported public types. Template data is `unknown`; application code should narrow it before reading domain-specific fields.
+`View.Settings`, `View.Model`, and `View.ListenerOptions` expose the supported public types. Template data is `unknown`; application code should narrow it before reading domain-specific fields. The JSX runtime also exports `JSXMarkup`, `JSXChild`, `raw()`, and the automatic runtime entry points used by TypeScript and compatible bundlers.
 
 ## Development
 
@@ -282,5 +339,6 @@ Edit `src/*.ts`, not generated `dist` files. The npm package publishes `dist` an
 - delegated DOM events
 - child-view ownership
 - lifecycle hooks
+- optional first-party JSX-to-markup rendering
 
-Templating engines, CSS systems, application state choices, routing, networking, and sanitization are intentionally outside this package.
+External templating engines, CSS systems, application state choices, routing, networking, and sanitization remain outside the package.
