@@ -63,7 +63,7 @@ const view = new View({
         section.textContent = `Hello, ${data.name}`;
         return section;
     }
-}).initialize();
+}).initialize(); // Returns the View instance after the initial synchronous render.
 
 model.update({name: 'Grace'});
 view.destroy();
@@ -83,6 +83,7 @@ const view = new View({
     template: data => `<section><h1>Hello, ${data.name}</h1></section>`
 }).initialize();
 
+// toString() returns the most recently rendered HTML string.
 const html = view.toString();
 view.destroy();
 ```
@@ -146,35 +147,37 @@ Browser templates must resolve to exactly one element. Empty strings, text nodes
 
 ## Browser public API
 
-| Method | Behavior |
-| --- | --- |
-| `initialize()` | Render current state and initialize lifecycle. |
-| `render()` | Synchronously mount, replace, or update the root. |
-| `requestRender()` | Render now or coalesce into an animation frame when batching is enabled. |
-| `setModel(model?)` | Move model binding and render current state. |
-| `delegate(scope?)` | Create a native delegated-event registry. |
-| `addChild(child)` | Register child ownership. |
-| `releaseChild(child)` | Release ownership without destroying the child. |
-| `initializeModelBinding()` | Subscribe to model `change` events. |
-| `destroyModelBinding()` | Release model subscription and queued work. |
-| `addListeners()` | Extension hook after root installation. |
-| `removeListeners()` | Extension hook before replacement or destruction. |
-| `afterMount()` | Extension hook after insertion and listener setup. |
-| `destroy()` | Release listeners, model binding, children, queued work, and DOM root. |
+| Method | Behavior | Returns |
+| --- | --- | --- |
+| `initialize()` | Render current state and initialize lifecycle. | The same `View` instance. |
+| `render()` | Synchronously mount, replace, or update the root. | The same `View` instance; throws `TypeError` if a template does not resolve to exactly one element. |
+| `requestRender()` | Render now or coalesce into an animation frame when batching is enabled. | The same `View` instance, whether rendered immediately or queued. |
+| `setModel(model?)` | Move model binding and render current state. | The same `View` instance after rendering. |
+| `delegate(scope?)` | Create a native delegated-event registry. | A new delegated-event registry scoped to the supplied element or current root. |
+| `addChild(child)` | Register child ownership. | The parent `View`; throws `TypeError` for cycles or a child already owned elsewhere. |
+| `releaseChild(child)` | Release ownership without destroying the child. | The parent `View`. |
+| `initializeModelBinding()` | Subscribe to model `change` events. | `undefined`; updates binding state in place. |
+| `destroyModelBinding()` | Release model subscription and queued work. | `undefined`; updates binding state in place. |
+| `addListeners()` | Extension hook after root installation. | The same `View` instance by default. |
+| `removeListeners()` | Extension hook before replacement or destruction. | The same `View` instance by default. |
+| `afterMount()` | Extension hook after insertion and listener setup. | The same `View` instance by default. |
+| `destroy()` | Release listeners, model binding, children, queued work, and DOM root. | The same `View` instance after cleanup. |
+
+Delegated-event registry methods `on()`, `off()`, and `clear()` each return that registry for chaining.
 
 ## Server public API
 
-| Method | Behavior |
-| --- | --- |
-| `initialize()` | Render current state and initialize lifecycle. |
-| `render()` | Render the template into stored HTML. |
-| `toString()` | Return the most recently rendered HTML. |
-| `setModel(model?)` | Move model binding and synchronously render new state. |
-| `addChild(child)` | Register child ownership. |
-| `releaseChild(child)` | Release ownership without destroying the child. |
-| `initializeModelBinding()` | Subscribe to model `change` events. |
-| `destroyModelBinding()` | Release model subscription. |
-| `destroy()` | Destroy children, release subscriptions, and clear output. |
+| Method | Behavior | Returns |
+| --- | --- | --- |
+| `initialize()` | Render current state and initialize lifecycle. | The same server `View` instance. |
+| `render()` | Render the template into stored HTML. | The same server `View`; throws `TypeError` for output that is neither a string nor White Label JSX markup. |
+| `toString()` | Return the most recently rendered HTML. | The rendered HTML string, or `''` before/after output is cleared. |
+| `setModel(model?)` | Move model binding and synchronously render new state. | The same server `View` instance after rendering. |
+| `addChild(child)` | Register child ownership. | The parent server `View`; throws `TypeError` for cycles or a child already owned elsewhere. |
+| `releaseChild(child)` | Release ownership without destroying the child. | The parent server `View`. |
+| `initializeModelBinding()` | Subscribe to model `change` events. | The same server `View` instance. |
+| `destroyModelBinding()` | Release model subscription. | The same server `View` instance. |
+| `destroy()` | Destroy children, release subscriptions, and clear output. | The same server `View` instance after cleanup. |
 
 ## Delegated browser events
 
