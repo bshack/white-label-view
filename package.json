@@ -110,6 +110,5 @@
       "require": "./dist/jsx-runtime.js",
       "default": "./dist/jsx-runtime.js"
     }
-  },
-  "packageManager": "npm@11.19.1"
+  }
 }
