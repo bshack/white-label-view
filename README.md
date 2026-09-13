@@ -16,7 +16,6 @@ Use it independently or compose it with the rest of White Label:
 - [`white-label-mediator`](https://github.com/bshack/white-label-mediator) carries application events without becoming part of View.
 - [`white-label-router`](https://github.com/bshack/white-label-router) can start and destroy view lifecycles as navigation changes.
 - [`generator-white-label`](https://github.com/bshack/white-label) demonstrates the complete composition.
-- [`white-label-demo-site`](https://github.com/bshack/white-label-demo-site) contains the complete documentation and live examples.
 
 The package has no runtime dependency on the other White Label packages. It does not bundle React, Preact, a CSS framework, sanitizer, state library, or component framework.
 
