@@ -1,20 +1,30 @@
 # white-label-view
 
-`white-label-view` provides explicit view lifecycle primitives for both browser and server runtimes. The default `white-label-view` entrypoint owns DOM rendering, model-driven updates, delegated events, batching, child-view ownership, and lifecycle cleanup. The separate `white-label-view/server` entrypoint uses the same model/template concepts to render trusted strings or White Label JSX without requiring DOM globals.
+> Rendering and lifecycle without a component framework.
 
-The package includes an optional, framework-independent JSX runtime but intentionally does **not** bundle React, Preact, a CSS framework, component framework, sanitizer, or state library. Styling and higher-level rendering choices remain in the consuming application.
+`white-label-view` provides explicit rendering and lifecycle primitives for browser and server runtimes. Browser View owns DOM rendering, model-driven updates, delegated events, batching, child ownership, and cleanup. The `/server` entrypoint uses the same model/template concepts to render strings or White Label JSX without DOM globals.
 
-The package can be installed and used independently; it has no runtime dependency on the other White Label packages.
+**Responsibility:** turn state into output and own the lifecycle around that output. Nothing more.
+
+## Why it exists
+
+White Label keeps rendering close to the web platform instead of introducing a proprietary component model. View gives rendering, subscriptions, DOM ownership, and teardown a predictable home while leaving state, routing, application events, styling, networking, and higher-level composition outside the package.
+
+Use it independently or compose it with the rest of White Label:
+
+- [`white-label-model`](https://github.com/bshack/white-label-model) provides observable state that View can render.
+- [`white-label-mediator`](https://github.com/bshack/white-label-mediator) carries application events without becoming part of View.
+- [`white-label-router`](https://github.com/bshack/white-label-router) can start and destroy view lifecycles as navigation changes.
+- [`generator-white-label`](https://github.com/bshack/white-label) demonstrates the complete composition.
+- [`white-label-demo-site`](https://github.com/bshack/white-label-demo-site) contains the complete documentation and live examples.
+
+The package has no runtime dependency on the other White Label packages. It does not bundle React, Preact, a CSS framework, sanitizer, state library, or component framework.
 
 ## Requirements
 
 - Node.js `^22.18.0` or `>=24.11.0` for installation, development, and server rendering.
-- A browser DOM only when using the default browser View entrypoint.
+- A browser DOM only when using the default browser entrypoint.
 - No `window` or `document` globals are required by `white-label-view/server`.
-
-## Versioning policy
-
-Backward compatibility is not maintained through aliases, deprecated method names, fallback signatures, or other runtime shims. Breaking public API changes are communicated with a Semantic Versioning major release and release notes outside this README.
 
 ## Install
 
@@ -22,21 +32,21 @@ Backward compatibility is not maintained through aliases, deprecated method name
 npm install white-label-view
 ```
 
-Browser View:
+Browser:
 
 ```js
 import View from 'white-label-view';
 ```
 
-Server View:
+Server:
 
 ```js
 import View from 'white-label-view/server';
 ```
 
-Both entrypoints can consume the same observable model contract and the same first-party JSX runtime. DOM mounting, delegated events, focus, and animation-frame batching remain deliberately browser-only.
+## One rendering model, explicit runtime boundaries
 
-## Browser use
+### Browser
 
 ```js
 import View from 'white-label-view';
@@ -45,27 +55,23 @@ import {Model} from 'white-label-model';
 const model = new Model({name: 'Ada'});
 const parentElement = document.querySelector('main');
 
-const profileView = new View({
+const view = new View({
     parentElement,
     model,
     template: data => {
-        const section = parentElement.ownerDocument.createElement('section');
-        const heading = parentElement.ownerDocument.createElement('h1');
-        heading.textContent = `Hello, ${data.name}`;
-        section.append(heading);
+        const section = document.createElement('section');
+        section.textContent = `Hello, ${data.name}`;
         return section;
     }
 }).initialize();
 
 model.update({name: 'Grace'});
-profileView.destroy();
+view.destroy();
 ```
 
-DOM construction remains the safest default when a consuming application needs direct control over untrusted data. If an application returns an HTML string, that string is trusted caller input and must already be safely escaped or sanitized for its context.
+Browser View accepts one DOM element, one trusted single-root HTML string, or White Label JSX output.
 
-## Server use
-
-Use the explicit `/server` entrypoint for request-time or other DOM-free rendering:
+### Server
 
 ```js
 import View from 'white-label-view/server';
@@ -79,18 +85,17 @@ const view = new View({
 
 const html = view.toString();
 view.destroy();
-model.destroy();
 ```
 
-Direct string templates intentionally have the same trusted-markup boundary as browser string templates. Escape or sanitize untrusted values before placing them in a raw HTML string. Prefer the first-party JSX runtime when you want expression escaping by default.
+Server View accepts a trusted HTML string or White Label JSX output. It intentionally does not emulate DOM nodes, delegated events, focus, mounting, or animation frames.
 
-Create request-specific Model/View instances for request-specific state rather than sharing mutable view state across concurrent requests.
+For request-specific state, create request-specific Model/View instances rather than sharing mutable instances across concurrent requests.
 
-## JSX templating
+## JSX is optional
 
-White Label View ships an automatic JSX runtime at `white-label-view/jsx-runtime`. It renders JSX to escaped markup understood by both browser and server View entrypoints, with no React or Preact dependency.
+White Label View includes a framework-independent automatic JSX runtime at `white-label-view/jsx-runtime`. It has no React or Preact dependency.
 
-Configure TypeScript with:
+Configure TypeScript:
 
 ```json
 {
@@ -101,37 +106,23 @@ Configure TypeScript with:
 }
 ```
 
-Then use `.tsx` templates normally:
+Then write normal TSX:
 
 ```tsx
-import View from 'white-label-view';
-import {Model} from 'white-label-model';
-
-type Profile = {
-    name: string;
-    count: number;
-};
-
-const model = new Model<Profile>({name: 'Ada', count: 1});
-
 const view = new View({
     parentElement: document.querySelector('main')!,
     model,
-    template(data) {
-        const profile = data as Profile;
-        return (
-            <section className="profile">
-                <h1>Hello, {profile.name}</h1>
-                <p>Count: {profile.count}</p>
-            </section>
-        );
-    }
+    template: data => (
+        <section className="profile">
+            <h1>Hello, {data.name}</h1>
+        </section>
+    )
 }).initialize();
 ```
 
-JSX child text and attribute values are escaped by default. Fragments, arrays of children, function components, standard boolean attributes, `className`, `htmlFor`, and style objects are supported. Intrinsic event-handler attributes such as `onClick` are intentionally not serialized; use View's delegated event lifecycle in the browser instead.
+JSX child text and attribute values are escaped by default. Fragments, child arrays, function components, boolean attributes, `className`, `htmlFor`, and style objects are supported. Intrinsic event-handler attributes such as `onClick` are not serialized; use delegated browser events instead.
 
-For markup that has already been independently trusted or sanitized, `raw()` is an explicit escape hatch:
+For independently trusted or sanitized markup, `raw()` is an explicit escape hatch:
 
 ```tsx
 import {raw} from 'white-label-view/jsx-runtime';
@@ -139,95 +130,58 @@ import {raw} from 'white-label-view/jsx-runtime';
 const template = () => <section>{raw('<strong>Trusted markup</strong>')}</section>;
 ```
 
-Never pass untrusted user content to `raw()`. Ordinary JSX expressions already escape strings correctly.
+Never pass untrusted user content to `raw()`. Direct HTML-string templates are also trusted caller input and must already be escaped or sanitized for their context.
 
-DOM-node templates are supported by browser View. String and JSX templates are supported by both browser and server View. The server entrypoint does not accept DOM nodes because it intentionally has no DOM dependency.
+## Template-engine agnostic
 
-## Compatible templating engines
+The first-party JSX runtime is optional. Any renderer that can be called from JavaScript and return a compatible result can sit in front of View. Handlebars, Eta, Mustache, Nunjucks, or application-specific renderers can be called inside `template`; none are package dependencies.
 
-`white-label-view` is template-engine agnostic. Any renderer that can be called from JavaScript and produce one compatible render result can sit in front of View. The built-in JSX runtime is the dependency-free first-party option.
+## Browser lifecycle
 
-- Browser View accepts one DOM element, one trusted single-root HTML string, or White Label JSX output.
-- Server View accepts one trusted HTML string or White Label JSX output and exposes the result through `toString()`.
+`initialize()` performs a synchronous `render()`. When a model exposes `get()`, View passes `model.get()` to the template; otherwise it passes the model itself.
 
-External renderers such as Handlebars, Eta, Mustache, Nunjucks, or application-specific JavaScript can be used by calling them inside the `template` callback. They are not package dependencies. HTML-string output remains trusted caller input.
+A successful mount or replacement installs the root, initializes model binding when possible, calls `addListeners()`, and then calls `afterMount()`. Equal HTML/JSX output skips reparsing while attached, and equal DOM trees preserve the existing root.
 
-## Browser rendering lifecycle
+Browser templates must resolve to exactly one element. Empty strings, text nodes, comments, multiple roots, top-level multi-element fragments, `null`, and other non-element results throw `TypeError` without replacing the last successful root.
 
-`initialize()` calls synchronous `render()`.
-
-When a model exposes `get()`, the view passes `model.get()` to the render callback. Otherwise it passes the model object. When the root is already attached, `update(element, data)` can return `true` to handle the update in place. Returning `false` falls back to normal rendering.
-
-A successful browser mount or replacement:
-
-1. inserts or replaces the root in its actual DOM parent;
-2. initializes the model subscription when possible;
-3. calls `addListeners()` once for that root;
-4. calls `afterMount()` once for that root.
-
-Equal HTML/JSX output skips reparsing while attached. Equal DOM trees preserve the existing root. Existing markup can also be adopted when the supplied `element` is already within `parentElement`.
-
-Browser render callbacks must resolve to exactly one element. Empty strings, text nodes, comments, multiple roots, top-level JSX fragments with multiple elements, `null`, and other non-element results throw `TypeError`. Invalid output does not replace the last successful root.
-
-String and JSX roots are parsed with a temporary `<template>` in the view's owning document, keeping iframe or multi-document views in the correct document.
-
-## Browser constructor settings
-
-| Setting | Meaning |
-| --- | --- |
-| `parentElement` | DOM element that receives or contains the root. |
-| `element` | Existing root element. Defaults to a new `div` in the owning document. |
-| `model` | Plain data object or an object with optional `get()`, `on()`, and `removeListener()` methods. |
-| `template` | Function receiving model data and returning one DOM node, one trusted single-root HTML string, or White Label JSX output. |
-| `update` | Optional in-place update hook. Return `true` when handled or `false` to use normal rendering. |
-| `batchUpdates` | When `true`, coalesce automatic model updates into one animation frame. Manual `render()` stays synchronous. |
-
-## Browser public methods
+## Browser public API
 
 | Method | Behavior |
 | --- | --- |
-| `initialize()` | Render current state and return the view. |
-| `render()` | Synchronously update or mount the root. |
-| `destroy()` | Cancel queued work, destroy owned children, remove listeners and model binding, remove the root, and reset the view for reuse. |
-| `setModel(model?)` | Move the model subscription and immediately render current state. |
-| `requestRender()` | Render now or request one batched animation-frame render. |
-| `addListeners()` | Extension hook called after a root is installed. |
-| `removeListeners()` | Extension hook called before root replacement or destruction. |
-| `afterMount()` | Extension hook called after insertion/adoption and listener setup. |
-| `addChild(child)` | Register child ownership without mounting it. |
-| `releaseChild(child)` | Relinquish ownership without destroying the child. |
-| `delegate(scope?)` | Create a native delegated-event registry for a scope or the current root. |
-| `initializeModelBinding()` | Add one model `change` listener when the model supports removable listeners. |
-| `destroyModelBinding()` | Remove this view's model listener and cancel queued rendering. |
-
-Model binding is one-way: model changes trigger view rendering. Form input is not automatically written back to the model.
-
-## Server public methods
-
-The server entrypoint intentionally exposes only the portable lifecycle subset:
-
-| Method | Behavior |
-| --- | --- |
-| `initialize()` | Render current state and return the view. |
-| `render()` | Render the template to the stored HTML string. |
-| `toString()` | Return the most recently rendered HTML string. |
-| `setModel(model?)` | Move the model subscription and synchronously render the new state. |
+| `initialize()` | Render current state and initialize lifecycle. |
+| `render()` | Synchronously mount, replace, or update the root. |
+| `requestRender()` | Render now or coalesce into an animation frame when batching is enabled. |
+| `setModel(model?)` | Move model binding and render current state. |
+| `delegate(scope?)` | Create a native delegated-event registry. |
 | `addChild(child)` | Register child ownership. |
-| `releaseChild(child)` | Relinquish child ownership without destroying it. |
-| `initializeModelBinding()` | Subscribe to model `change` when the model supports removable listeners. |
-| `destroyModelBinding()` | Release that subscription. |
-| `destroy()` | Destroy owned children, release subscriptions, clear rendered output, and return the view. |
+| `releaseChild(child)` | Release ownership without destroying the child. |
+| `initializeModelBinding()` | Subscribe to model `change` events. |
+| `destroyModelBinding()` | Release model subscription and queued work. |
+| `addListeners()` | Extension hook after root installation. |
+| `removeListeners()` | Extension hook before replacement or destruction. |
+| `afterMount()` | Extension hook after insertion and listener setup. |
+| `destroy()` | Release listeners, model binding, children, queued work, and DOM root. |
 
-Server View does not emulate DOM nodes, delegated events, focus, `requestAnimationFrame`, or mounting. Those remain browser concerns.
+## Server public API
 
-## Reusable views and delegated events
+| Method | Behavior |
+| --- | --- |
+| `initialize()` | Render current state and initialize lifecycle. |
+| `render()` | Render the template into stored HTML. |
+| `toString()` | Return the most recently rendered HTML. |
+| `setModel(model?)` | Move model binding and synchronously render new state. |
+| `addChild(child)` | Register child ownership. |
+| `releaseChild(child)` | Release ownership without destroying the child. |
+| `initializeModelBinding()` | Subscribe to model `change` events. |
+| `destroyModelBinding()` | Release model subscription. |
+| `destroy()` | Destroy children, release subscriptions, and clear output. |
 
-The following APIs apply to the browser entrypoint:
+## Delegated browser events
+
+Subclass View when a feature owns browser behavior:
 
 ```js
-import View from 'white-label-view';
-
-export default class MenuView extends View {
+class MenuView extends View {
     constructor(settings) {
         super(settings);
         this.handleLinkClick = this.handleLinkClick.bind(this);
@@ -249,13 +203,11 @@ export default class MenuView extends View {
 }
 ```
 
-Delegation uses native `addEventListener()` and `closest()`. `on(type, selector, callback, options)` accepts a capture boolean or normal listener options including `capture`, `passive`, `signal`, and `once`. A `once` registration is consumed only after a matching delegated event. Aborting a supplied signal removes both the native registration and the registry reference. `off()` can filter by type, selector, callback, and capture phase. `clear()` removes all registrations.
-
-The matching element is the callback's `this` value. Independent registries created with `delegate(scope)` are caller-owned and should be cleared when no longer needed. The view-owned `delegated` registry is cleared automatically when the root is replaced or destroyed.
+Delegation uses native `addEventListener()` and `closest()`. Registries created with `delegate(scope)` are caller-owned; the View-owned `delegated` registry is cleared when the root is replaced or destroyed.
 
 ## In-place updates and focus preservation
 
-Use browser View's `update()` when replacing a root would unnecessarily destroy focus, selection, or other browser state:
+Use `update()` when replacing a root would unnecessarily destroy browser state:
 
 ```js
 const view = new View({
@@ -269,41 +221,33 @@ const view = new View({
 }).initialize();
 ```
 
-Returning `false` from `update()` runs the normal render callback instead.
+Return `true` when the update was handled. Return `false` to fall back to normal rendering.
 
-## Model replacement and batching
+## Model binding and batching
 
-Assigning `view.model = nextModel` moves an active subscription from the old emitter to the new one but does not render immediately. Use `view.setModel(nextModel)` when the new state should render immediately.
+Model binding is one-way: model changes trigger rendering; form input is not automatically written back to state.
 
-Observable models must provide both `on()` and `removeListener()` so the view can release its subscription. Objects that do not provide both methods are treated as non-observable data.
+Observable models must provide both `on()` and `removeListener()` so View can release its subscription. `setModel(nextModel)` moves the binding and renders immediately.
 
-Browser View can set `batchUpdates: true` to coalesce model-driven renders into one `requestAnimationFrame` callback. The callback reads the latest model state. `render()`, `setModel()`, model replacement, binding teardown, and destruction cancel pending work. If the owning window does not provide `requestAnimationFrame`, rendering falls back to synchronous behavior.
+Set `batchUpdates: true` in Browser View to coalesce model-driven renders into one `requestAnimationFrame`. Manual `render()` remains synchronous. Server View always renders model changes synchronously.
 
-Server View renders model changes synchronously and does not emulate animation-frame batching.
+## Child ownership
 
-## Owned child views
+`addChild()` opts a child into parent ownership; it does not mount the child automatically. Parent root replacement and destruction destroy owned browser children. In-place updates and equal-root renders preserve them. Server View destroys owned children during teardown.
 
-`addChild()` opts a child into parent ownership. Browser View does not mount the child automatically; initialize the child explicitly with an appropriate parent element, commonly from `afterMount()`.
+`releaseChild()` transfers cleanup responsibility without destroying the child. Ownership cycles and simultaneous ownership by two parents throw `TypeError`.
 
-Parent root replacement and destruction destroy all owned browser children. In-place updates and equal-root renders preserve them. Server View destroys owned children during its own teardown. Duplicate registration is harmless. Ownership cycles and simultaneous ownership by two parents throw `TypeError`.
+## Accessibility and public content
 
-`releaseChild()` transfers cleanup responsibility without destroying the child. Destroying a child directly also removes it from its owner.
+View manages rendering mechanics, not markup quality. Applications remain responsible for semantic HTML, accessible names, keyboard operation, focus visibility, contrast, live regions, and other applicable accessibility requirements.
 
-## Accessibility and indexing
-
-The library manages lifecycle and rendering mechanics, not markup quality. Applications remain responsible for semantic HTML, accessible names, keyboard operation, focus visibility, reflow, contrast, live-region behavior, and other applicable accessibility requirements.
-
-For public content, prefer meaningful server-rendered or static initial HTML and use browser View for progressive enhancement. `white-label-view/server` can participate in that initial HTML path while the default View owns browser-only lifecycle after hydration/progressive startup. The package does not provide automatic hydration or claim to reconcile server DOM with browser state.
+For public content, prefer meaningful server-rendered or static initial HTML and use Browser View for progressive enhancement. The package does not provide automatic hydration or claim to reconcile server DOM with browser state.
 
 ## TypeScript
 
-Both entrypoints use strict TypeScript and emit CommonJS JavaScript, source maps, and declarations into `dist`.
-
-Browser example:
+Both entrypoints use strict TypeScript and emit JavaScript, source maps, and declarations into `dist`.
 
 ```ts
-import View from 'white-label-view';
-
 const settings: View.Settings = {
     parentElement: document.body,
     template: () => '<p>Hello</p>',
@@ -311,20 +255,9 @@ const settings: View.Settings = {
 };
 
 const view = new View(settings).initialize();
-view.destroy();
 ```
 
-Server example:
-
-```ts
-import View from 'white-label-view/server';
-
-const view = new View({template: () => '<p>Hello</p>'}).initialize();
-const html: string = view.toString();
-view.destroy();
-```
-
-`View.Settings`, `View.Model`, and the browser-specific listener/settings types expose the supported public contracts. Template data is `unknown`; application code should narrow it before reading domain-specific fields. The JSX runtime also exports `JSXMarkup`, `JSXChild`, `raw()`, and the automatic runtime entry points used by TypeScript and compatible bundlers.
+`View.Settings`, `View.Model`, browser listener/settings types, and JSX runtime types expose the supported contracts. Template data is `unknown`; application code should narrow it before reading domain fields.
 
 ## Development
 
@@ -339,21 +272,10 @@ npm run audit
 npm pack --dry-run
 ```
 
-Coverage is enforced at 100% for statements, branches, functions, and lines in every implementation file. CI refreshes dependency metadata, builds tracked `dist`, runs the complete test/type/coverage/audit suite, verifies every public package subpath from the packed npm artifact in a clean temporary project, and verifies that committed generated output matches the build.
+Coverage enforces 100% statements, branches, functions, and lines per implementation file. CI builds tracked `dist`, verifies public package subpaths from the packed artifact, and rejects generated-output drift.
 
-Edit `src/*.ts`, not generated `dist` files. The npm package publishes `dist` and this README.
+Edit `src/*.ts` and regenerate `dist`; do not edit generated files directly.
 
-## Scope
+## Design boundary
 
-`white-label-view` is deliberately limited to view responsibilities:
-
-- browser DOM root creation, adoption, replacement, and cleanup;
-- server string rendering through the explicit `/server` entrypoint;
-- model-to-view change subscriptions;
-- optional browser frame batching;
-- delegated browser DOM events;
-- child-view ownership;
-- lifecycle hooks;
-- optional first-party JSX-to-markup rendering.
-
-External templating engines, CSS systems, application state choices, routing, networking, and sanitization remain outside the package.
+View owns rendering and rendering lifecycle. It intentionally does not own application state, routing, networking, CSS, sanitization policy, or application-wide events. Browser-specific behavior stays browser-specific; portable rendering concepts stay portable.
