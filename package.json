@@ -1,7 +1,7 @@
 {
   "name": "white-label-view",
   "version": "5.1.0",
-  "description": "Framework-independent TypeScript rendering and lifecycle library for browser and server applications, with optional JSX and server-side rendering.",
+  "description": "Framework-independent TypeScript rendering and lifecycle for browser, server, and request-scoped Node.js function applications, with optional JSX and SSR.",
   "sideEffects": false,
   "main": "dist/index.js",
   "files": [
@@ -33,6 +33,7 @@
     "dom",
     "server-rendering",
     "ssr",
+    "serverless",
     "template-engine",
     "delegated-events",
     "progressive-enhancement",
