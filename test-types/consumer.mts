@@ -1,4 +1,5 @@
 import View from '../dist/index.js';
+import ServerView from '../dist/server.js';
 const settings: View.Settings = {parentElement: document.body, template: () => '<p>Hello</p>'};
 const view = new View(settings);
 view.initialize().destroy();
@@ -29,6 +30,7 @@ declare const typedObservable: {
     removeListener(event: 'change', listener: (state: {count: number}) => void): unknown;
 };
 new View({model: typedObservable});
+new ServerView({model: typedObservable, template: data => `<p>${String(data)}</p>`});
 
 const child = new View();
 profile.addChild(child).releaseChild(child);

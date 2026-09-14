@@ -96,6 +96,18 @@ Server View accepts a trusted HTML string or White Label JSX output. It intentio
 
 For request-specific state, create request-specific Model/View instances rather than sharing mutable instances across concurrent requests.
 
+## Serverless and function runtimes
+
+Use `white-label-view/server` when a serverless function should produce HTML. It has no `window` or `document` requirement and returns rendered markup through `toString()`, so it fits functions that receive a request, build request-scoped state, render a response, and then release that lifecycle.
+
+Create mutable View instances per request when they own request-specific models, subscriptions, child views, or output. Warm function processes may serve many sequential or overlapping requests, so sharing one mutable View across invocations can mix output or lifecycle state unless that shared lifetime is deliberate.
+
+Browser View remains a separate progressive-enhancement concern. A function runtime should use the server entrypoint rather than emulating DOM mounting, delegated events, focus, or animation frames.
+
+Direct HTML strings remain trusted caller input in serverless rendering just as they are elsewhere. Escape or sanitize untrusted values for their output context, or use the optional White Label JSX runtime where its default escaping fits the application.
+
+The package currently documents Node.js as its supported server runtime. DOM-free server rendering is portable by design, but that is not a blanket compatibility claim for every edge provider; verify the actual target runtime before deployment.
+
 ## JSX is optional
 
 White Label View includes a framework-independent automatic JSX runtime at `white-label-view/jsx-runtime`. Use it when JSX/TSX fits the project; skip it when plain TypeScript or another template engine should own rendering. View itself does not require JSX.
