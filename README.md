@@ -2,7 +2,9 @@
 
 > Rendering and lifecycle without a component framework.
 
-`white-label-view` provides explicit rendering and lifecycle primitives for browser and server runtimes. Browser View owns DOM rendering, model-driven updates, delegated events, batching, child ownership, and cleanup. The `/server` entrypoint uses the same model/template concepts to render strings or optional White Label JSX without DOM globals.
+`white-label-view` is a framework-independent TypeScript rendering and lifecycle library for browser and server applications. It supports DOM rendering, model-driven updates, delegated events, batching, child ownership, server-side string rendering, and optional JSX without React.
+
+[Documentation](https://whitelabeljs.org/docs/view/) · [API reference](https://whitelabeljs.org/api/#view) · [Demo site](https://whitelabeljs.org/)
 
 **Responsibility:** turn state into output and own the lifecycle around that output. Nothing more.
 
