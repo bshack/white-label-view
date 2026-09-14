@@ -50,7 +50,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:unit": "node --test test/*.test.js",
     "coverage": "node --run build && node --run test:types && c8 node --run test:unit",
-    "prepack": "node --run build",
+    "prepare": "node --run build",
     "test:types": "tsc -p tsconfig.consumer.json",
     "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
     "lint:fix": "node --run lint -- --fix"

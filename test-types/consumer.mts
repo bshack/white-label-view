@@ -21,6 +21,15 @@ profile.delegated.on('focus', 'input', function(event) {
 }, {capture: true, passive: true, signal: controller.signal, once: true});
 profile.delegated.off('focus', 'input', undefined, {capture: true});
 profile.setModel({get: () => ({name: 'Ada'})}).requestRender();
+
+// Typed observable models may narrow their event API to the change event View actually uses.
+declare const typedObservable: {
+    get(): {count: number};
+    on(event: 'change', listener: (state: {count: number}) => void): unknown;
+    removeListener(event: 'change', listener: (state: {count: number}) => void): unknown;
+};
+new View({model: typedObservable});
+
 const child = new View();
 profile.addChild(child).releaseChild(child);
 const listenerOptions: View.ListenerOptions = {signal: controller.signal};
