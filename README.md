@@ -22,6 +22,7 @@ The package has no runtime dependency on the other White Label packages. It does
 ## Requirements
 
 - Node.js `^22.18.0` or `>=24.11.0` for installation, development, and server rendering.
+- npm, Yarn, and pnpm are supported for installation; see [`PACKAGE_MANAGERS.md`](PACKAGE_MANAGERS.md).
 - A browser DOM only when using the default browser entrypoint.
 - No `window` or `document` globals are required by `white-label-view/server`.
 
@@ -29,6 +30,8 @@ The package has no runtime dependency on the other White Label packages. It does
 
 ```sh
 npm install white-label-view
+# or: yarn add white-label-view
+# or: pnpm add white-label-view
 ```
 
 Browser:
@@ -274,7 +277,7 @@ npm run audit
 npm pack --dry-run
 ```
 
-Coverage enforces 100% statements, branches, functions, and lines per implementation file. CI builds tracked `dist`, verifies public package subpaths from the packed artifact, and rejects generated-output drift.
+Coverage enforces 100% statements, branches, functions, and lines per implementation file. CI builds authored source, uploads generated artifacts for inspection, verifies public package subpaths from the packed artifact, and tests packed-package compatibility across npm, Yarn, and pnpm.
 
 Edit `src/*.ts` and regenerate `dist`; do not edit generated files directly.
 
