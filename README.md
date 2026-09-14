@@ -137,7 +137,11 @@ Never pass untrusted user content to `raw()`. Direct HTML-string templates are a
 
 ## Template-engine agnostic
 
-The first-party JSX runtime is optional. Any renderer that can be called from JavaScript and return a compatible result can sit in front of View. Handlebars, Eta, Mustache, Nunjucks, or application-specific renderers can be called inside `template`; none are package dependencies.
+The first-party JSX runtime is optional. `View` only requires `template` to return a compatible result, so applications can keep the renderer they already use. White Label currently tests Handlebars `4.7.9`, Eta `4.6.0`, EJS `6.0.1`, and Pug `3.0.4` in both browser and server View; other compatible renderers remain application-owned integrations rather than package dependencies.
+
+If you use `generator-white-label`, choose the no-JSX option (`--no-jsx`) to generate plain TypeScript templates that return HTML strings. That keeps the same White Label architecture, lifecycle behavior, and progressive-enhancement capabilities while avoiding a second template syntax or JSX compiler/runtime integration.
+
+See [Template engines and JSX options](https://whitelabeljs.org/docs/view/#template-engines) for tested compatibility, no-JSX setup, rendering contracts, and escaping/security boundaries.
 
 ## Browser lifecycle
 
