@@ -1,8 +1,10 @@
 # Template engine compatibility
 
-`white-label-view` is template-engine agnostic. A template engine is compatible when application code can call it from `template` and return output that satisfies the View runtime contract.
+`white-label-view` is template-engine agnostic. JSX is an optional first-party rendering choice, not a requirement. A third-party template engine is compatible when application code can call it from `template` and return output that satisfies the View runtime contract.
 
-White Label does not wrap, configure, bundle, or depend on third-party template engines.
+White Label does not wrap, configure, bundle, or depend on third-party template engines. Applications install and configure the renderer they choose.
+
+For the public guide, including generator `--no-jsx` usage and the current tested-engine matrix, see [Template engines and JSX options](https://whitelabeljs.org/docs/view/#template-engines).
 
 ## Tested engines
 
@@ -13,9 +15,11 @@ CI verifies the packed `white-label-view` package with these representative engi
 | Handlebars | 4.7.9 | Yes | Yes |
 | Eta | 4.6.0 | Yes | Yes |
 | EJS | 6.0.1 | Yes | Yes |
+| Mustache | 4.2.0 | Yes | Yes |
+| Nunjucks | 3.2.4 | Yes | Yes |
 | Pug | 3.0.4 | Yes | Yes |
 
-The compatibility test renders escaped data through each engine and then passes the resulting HTML to White Label View.
+The compatibility test renders escaped data through each engine and then passes the resulting HTML to White Label View. Engine-specific escaping remains application-owned; for example, the Nunjucks compatibility test enables `autoescape` explicitly.
 
 ## Browser contract
 
@@ -45,6 +49,24 @@ const html = view.toString();
 ```
 
 No DOM globals are required.
+
+## Choosing JSX or another renderer
+
+Use White Label JSX when its small first-party runtime fits the project. Skip JSX when plain TypeScript or an existing template engine should remain the application's template convention.
+
+With `generator-white-label`, choose the no-JSX scaffold interactively or pass `--no-jsx`. The generated project then uses plain TypeScript functions that return HTML strings; replace or wrap those functions with your chosen renderer as needed. Model, View, Router, Mediator, progressive enhancement, and lifecycle behavior remain the same.
+
+A renderer does not need a White Label adapter. Install it in the application and call it from `template`:
+
+```js
+const view = new View({
+    parentElement,
+    model,
+    template: data => renderer.render(templateSource, data)
+}).initialize();
+```
+
+Engines not listed in the tested matrix can still work when they satisfy the same output contract; they are simply not covered by White Label's compatibility CI.
 
 ## Security boundary
 

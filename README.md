@@ -2,7 +2,7 @@
 
 > Rendering and lifecycle without a component framework.
 
-`white-label-view` provides explicit rendering and lifecycle primitives for browser and server runtimes. Browser View owns DOM rendering, model-driven updates, delegated events, batching, child ownership, and cleanup. The `/server` entrypoint uses the same model/template concepts to render strings or White Label JSX without DOM globals.
+`white-label-view` provides explicit rendering and lifecycle primitives for browser and server runtimes. Browser View owns DOM rendering, model-driven updates, delegated events, batching, child ownership, and cleanup. The `/server` entrypoint uses the same model/template concepts to render strings or optional White Label JSX without DOM globals.
 
 **Responsibility:** turn state into output and own the lifecycle around that output. Nothing more.
 
@@ -17,7 +17,7 @@ Use it independently or compose it with the rest of White Label:
 - [`white-label-router`](https://github.com/bshack/white-label-router) can start and destroy view lifecycles as navigation changes.
 - [`generator-white-label`](https://github.com/bshack/white-label) demonstrates the complete composition.
 
-The package has no runtime dependency on the other White Label packages. It does not bundle React, Preact, a CSS framework, sanitizer, state library, or component framework.
+The package has no runtime dependency on the other White Label packages. It does not bundle React, Preact, a CSS framework, sanitizer, state library, component framework, or third-party template engine.
 
 ## Requirements
 
@@ -96,9 +96,9 @@ For request-specific state, create request-specific Model/View instances rather 
 
 ## JSX is optional
 
-White Label View includes a framework-independent automatic JSX runtime at `white-label-view/jsx-runtime`. It has no React or Preact dependency.
+White Label View includes a framework-independent automatic JSX runtime at `white-label-view/jsx-runtime`. Use it when JSX/TSX fits the project; skip it when plain TypeScript or another template engine should own rendering. View itself does not require JSX.
 
-Configure TypeScript:
+Configure TypeScript when choosing JSX:
 
 ```json
 {
@@ -135,13 +135,15 @@ const template = () => <section>{raw('<strong>Trusted markup</strong>')}</sectio
 
 Never pass untrusted user content to `raw()`. Direct HTML-string templates are also trusted caller input and must already be escaped or sanitized for their context.
 
+If you do not want JSX, return DOM nodes or trusted HTML strings directly, or call a third-party renderer from `template`. See [Template engines and JSX options](https://whitelabeljs.org/docs/view/#template-engines) for the no-JSX generator path, tested engines, and rendering/security contracts.
+
 ## Template-engine agnostic
 
-The first-party JSX runtime is optional. `View` only requires `template` to return a compatible result, so applications can keep the renderer they already use. White Label currently tests Handlebars `4.7.9`, Eta `4.6.0`, EJS `6.0.1`, and Pug `3.0.4` in both browser and server View; other compatible renderers remain application-owned integrations rather than package dependencies.
+The first-party JSX runtime is optional. `View` only requires `template` to return a compatible result, so applications can keep the renderer they already use. White Label currently tests Handlebars `4.7.9`, Eta `4.6.0`, EJS `6.0.1`, Mustache `4.2.0`, Nunjucks `3.2.4`, and Pug `3.0.4` in both browser and server View. Other compatible renderers can use the same contract but remain application-owned integrations rather than package dependencies or White Label-tested combinations.
 
-If you use `generator-white-label`, choose the no-JSX option (`--no-jsx`) to generate plain TypeScript templates that return HTML strings. That keeps the same White Label architecture, lifecycle behavior, and progressive-enhancement capabilities while avoiding a second template syntax or JSX compiler/runtime integration.
+If you use `generator-white-label`, choose the no-JSX option (`--no-jsx`) to generate plain TypeScript templates that return HTML strings. Install and configure your preferred engine in the generated application, then call it from the View `template` function. That keeps the same White Label architecture, lifecycle behavior, and progressive-enhancement capabilities while avoiding a second template syntax or JSX compiler/runtime integration.
 
-See [Template engines and JSX options](https://whitelabeljs.org/docs/view/#template-engines) for tested compatibility, no-JSX setup, rendering contracts, and escaping/security boundaries.
+See [Template engines and JSX options](https://whitelabeljs.org/docs/view/#template-engines) for tested compatibility, no-JSX setup, rendering contracts, and escaping/security boundaries. The repository-level compatibility notes are also in [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md).
 
 ## Browser lifecycle
 
@@ -180,7 +182,7 @@ Delegated-event registry methods `on()`, `off()`, and `clear()` each return that
 | `toString()` | Return the most recently rendered HTML. | The rendered HTML string, or `''` before/after output is cleared. |
 | `setModel(model?)` | Move model binding and synchronously render new state. | The same server `View` instance after rendering. |
 | `addChild(child)` | Register child ownership. | The parent server `View`; throws `TypeError` for cycles or a child already owned elsewhere. |
-| `releaseChild(child)` | Release ownership without destroying the child. | The parent server `View`. |
+| `releaseChild(child)` | Release ownership without destroying the child. | The same server `View` instance. |
 | `initializeModelBinding()` | Subscribe to model `change` events. | The same server `View` instance. |
 | `destroyModelBinding()` | Release model subscription. | The same server `View` instance. |
 | `destroy()` | Destroy children, release subscriptions, and clear output. | The same server `View` instance after cleanup. |
