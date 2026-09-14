@@ -4,8 +4,8 @@ import type {JSXMarkup} from './jsx-runtime.js';
 /** Data source consumed by the server rendering lifecycle. */
 interface ViewModel {
     get?: () => unknown;
-    on?: (event: string, callback: () => void) => unknown;
-    removeListener?: (event: string, callback: () => void) => unknown;
+    on?: (event: 'change', callback: () => void) => unknown;
+    removeListener?: (event: 'change', callback: () => void) => unknown;
 }
 
 /** Server settings mirror the portable subset of browser View settings. */
