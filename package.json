@@ -2,6 +2,7 @@
   "name": "white-label-view",
   "version": "5.1.0",
   "description": "A browser/Node view lifecycle with DOM rendering, server string rendering, model updates, child ownership, and optional JSX.",
+  "sideEffects": false,
   "main": "dist/index.js",
   "files": [
     "dist",
