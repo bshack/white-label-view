@@ -1,7 +1,7 @@
 {
   "name": "white-label-view",
   "version": "5.1.0",
-  "description": "A browser/Node view lifecycle with DOM rendering, server string rendering, model updates, child ownership, and optional JSX.",
+  "description": "Framework-independent TypeScript rendering and lifecycle library for browser and server applications, with optional JSX and server-side rendering.",
   "sideEffects": false,
   "main": "dist/index.js",
   "files": [
@@ -27,12 +27,16 @@
     "javascript",
     "typescript",
     "view",
+    "rendering",
     "jsx",
+    "jsx-without-react",
     "dom",
     "server-rendering",
     "ssr",
+    "template-engine",
     "delegated-events",
     "progressive-enhancement",
+    "framework-independent",
     "browser",
     "node",
     "server-side",
@@ -43,7 +47,7 @@
   "bugs": {
     "url": "https://github.com/bshack/white-label-view/issues"
   },
-  "homepage": "https://github.com/bshack/white-label-view#readme",
+  "homepage": "https://whitelabeljs.org/docs/view/",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --run build && node --run test:types && node --run test:unit",
