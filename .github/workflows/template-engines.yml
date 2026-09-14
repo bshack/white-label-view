@@ -24,7 +24,7 @@ jobs:
       - run: npm run build
       - name: Create packed package
         run: npm pack --silent
-      - name: Verify Handlebars, Eta, EJS, and Pug
+      - name: Verify Handlebars, Eta, EJS, Mustache, Nunjucks, and Pug
         run: |
           PACKAGE="$(realpath *.tgz)"
           TEMP="$(mktemp -d)"
@@ -36,6 +36,8 @@ jobs:
             handlebars@4.7.9 \
             eta@4.6.0 \
             ejs@6.0.1 \
+            mustache@4.2.0 \
+            nunjucks@3.2.4 \
             pug@3.0.4 \
             jsdom@30.0.1 >/dev/null
           node --test template-engines.test.mjs
