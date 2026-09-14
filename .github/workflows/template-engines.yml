@@ -1,0 +1,41 @@
+name: Template engine compatibility
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  template-engines:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Create packed package
+        run: npm pack --silent
+      - name: Verify Handlebars, Eta, EJS, and Pug
+        run: |
+          PACKAGE="$(realpath *.tgz)"
+          TEMP="$(mktemp -d)"
+          cp integration/template-engines.test.mjs "$TEMP/template-engines.test.mjs"
+          cd "$TEMP"
+          printf '{"private":true,"type":"module"}\n' > package.json
+          npm install --ignore-scripts --no-save \
+            "$PACKAGE" \
+            handlebars@4.7.9 \
+            eta@4.6.0 \
+            ejs@6.0.1 \
+            pug@3.0.4 \
+            jsdom@30.0.1 >/dev/null
+          node --test template-engines.test.mjs
