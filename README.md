@@ -252,7 +252,7 @@ Return `true` when the update was handled. Return `false` to fall back to normal
 
 Model binding is one-way: model changes trigger rendering; form input is not automatically written back to state.
 
-Observable models must provide both `on()` and `removeListener()` so View can release its subscription. `setModel(nextModel)` moves the binding and renders immediately.
+Observable models use the native `EventTarget` contract and must provide both `addEventListener()` and `removeEventListener()` so View can subscribe to and release the `change` event. EventEmitter-style `on()` / `removeListener()` model bindings are not supported in View 6. `setModel(nextModel)` moves the binding and renders immediately.
 
 Set `batchUpdates: true` in Browser View to coalesce model-driven renders into one `requestAnimationFrame`. Manual `render()` remains synchronous. Server View always renders model changes synchronously.
 
