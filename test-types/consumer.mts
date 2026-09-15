@@ -23,14 +23,23 @@ profile.delegated.on('focus', 'input', function(event) {
 profile.delegated.off('focus', 'input', undefined, {capture: true});
 profile.setModel({get: () => ({name: 'Ada'})}).requestRender();
 
-// Typed observable models may narrow their event API to the change event View actually uses.
-declare const typedObservable: {
+// Model 7-style observable models may narrow the EventTarget API to the change event View actually uses.
+declare const eventTargetObservable: {
+    get(): {count: number};
+    addEventListener(event: 'change', listener: (event: CustomEvent<{count: number}>) => void): unknown;
+    removeEventListener(event: 'change', listener: (event: CustomEvent<{count: number}>) => void): unknown;
+};
+new View({model: eventTargetObservable});
+new ServerView({model: eventTargetObservable, template: data => `<p>${String(data)}</p>`});
+
+// Legacy EventEmitter-style observables remain accepted for compatibility.
+declare const legacyObservable: {
     get(): {count: number};
     on(event: 'change', listener: (state: {count: number}) => void): unknown;
     removeListener(event: 'change', listener: (state: {count: number}) => void): unknown;
 };
-new View({model: typedObservable});
-new ServerView({model: typedObservable, template: data => `<p>${String(data)}</p>`});
+new View({model: legacyObservable});
+new ServerView({model: legacyObservable, template: data => `<p>${String(data)}</p>`});
 
 const child = new View();
 profile.addChild(child).releaseChild(child);
