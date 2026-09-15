@@ -2,7 +2,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {JSDOM} = require('jsdom');
-const {EventEmitter} = require('node:events');
 const View = require('../dist');
 function setup(t, html = '<main></main>') {
     const window = new JSDOM(html).window;
@@ -10,7 +9,27 @@ function setup(t, html = '<main></main>') {
     t.after(() => {window.close();delete global.document;delete global.DOMParser;});
     return {window, parent:document.querySelector('main')};
 }
-function observable(value) {return Object.assign(new EventEmitter(),{value,get(){return {value:this.value};}});}
+function observable(value) {
+    const target = new EventTarget();
+    const listeners = new Set();
+    const add = target.addEventListener.bind(target);
+    const remove = target.removeEventListener.bind(target);
+    target.value = value;
+    target.get = function() {return {value:this.value};};
+    target.addEventListener = function(type, listener, options) {
+        if (type === 'change') listeners.add(listener);
+        return add(type, listener, options);
+    };
+    target.removeEventListener = function(type, listener, options) {
+        if (type === 'change') listeners.delete(listener);
+        return remove(type, listener, options);
+    };
+    target.listenerCount = () => listeners.size;
+    target.change = function() {
+        return this.dispatchEvent(new CustomEvent('change', {detail:this.get()}));
+    };
+    return target;
+}
 function frames(window) {
     const queued=new Map();let id=0;
     window.requestAnimationFrame=callback=>{queued.set(++id,callback);return id;};
@@ -30,11 +49,11 @@ test('adopts equal and template-free existing markup with listeners, binding and
     view.render();view.initialize();
     root.dispatchEvent(new window.MouseEvent('click'));
     assert.equal(clicks,1);assert.equal(document.activeElement,root);
-    assert.equal(model.listenerCount('change'),1);assert.deepEqual(events,['listeners','mounted']);
-    view.destroy();assert.equal(model.listenerCount('change'),0);
+    assert.equal(model.listenerCount(),1);assert.deepEqual(events,['listeners','mounted']);
+    view.destroy();assert.equal(model.listenerCount(),0);
     parent.innerHTML='<button>existing</button>';
     const adopted=new Button({parentElement:parent,element:parent.firstChild,model}).initialize();
-    assert.equal(model.listenerCount('change'),1);adopted.destroy();
+    assert.equal(model.listenerCount(),1);adopted.destroy();
     assert.deepEqual(events,['listeners','mounted','listeners','mounted']);
 });
 
@@ -43,27 +62,27 @@ test('prototype update hooks survive construction and explicit settings can over
     class Custom extends View {update(element,data){updates++;element.textContent=data.value;return true;}}
     const model=observable('first');
     const view=new Custom({parentElement:parent,model,template:()=>'<p>initial</p>'}).initialize();
-    const root=view.element;model.value='next';model.emit('change');
+    const root=view.element;model.value='next';model.change();
     assert.equal(updates,1);assert.equal(view.element,root);assert.equal(root.textContent,'next');view.destroy();
     const explicit=new Custom({parentElement:parent,template:()=>'<p>fallback</p>',update:()=>false}).initialize();
     explicit.render();assert.equal(updates,1);explicit.destroy();
 });
 
-test('model assignment moves subscriptions and setModel renders immediately without leaking old emitters', t => {
+test('model assignment moves EventTarget subscriptions and setModel renders immediately without leaks', t => {
     const {parent}=setup(t);const old=observable('old'),next=observable('new');let renders=0;
     const view=new View({parentElement:parent,model:old,template:data=>{renders++;return `<p>${data.value}</p>`;}}).initialize();
     view.model=next;
-    assert.equal(old.listenerCount('change'),0);assert.equal(next.listenerCount('change'),1);
-    old.emit('change');assert.equal(renders,1);
-    next.emit('change');assert.equal(parent.textContent,'new');
-    view.model=next;assert.equal(next.listenerCount('change'),1);
-    view.setModel(old);assert.equal(parent.textContent,'old');assert.equal(next.listenerCount('change'),0);
-    view.setModel();assert.equal(old.listenerCount('change'),0);
+    assert.equal(old.listenerCount(),0);assert.equal(next.listenerCount(),1);
+    old.change();assert.equal(renders,1);
+    next.change();assert.equal(parent.textContent,'new');
+    view.model=next;assert.equal(next.listenerCount(),1);
+    view.setModel(old);assert.equal(parent.textContent,'old');assert.equal(next.listenerCount(),0);
+    view.setModel();assert.equal(old.listenerCount(),0);
     view.setModel({value:'plain'});assert.equal(parent.textContent,'plain');
     view.destroy();
     let registrations=0;
-    const incomplete=new View({model:{on(){registrations++;}}});incomplete.initializeModelBinding();
-    incomplete.model={removeListener(){}};incomplete.initializeModelBinding();
+    const incomplete=new View({model:{addEventListener(){registrations++;}}});incomplete.initializeModelBinding();
+    incomplete.model={removeEventListener(){}};incomplete.initializeModelBinding();
     assert.equal(registrations,0);incomplete.destroy();
 });
 
@@ -90,20 +109,20 @@ test('invalid roots fail repeatedly without poisoning the successful render cach
 test('batching coalesces model events, uses current data and cancels on manual render, model switch or destruction', t => {
     const {parent,window}=setup(t);const frame=frames(window);const model=observable(0);let renders=0;
     const view=new View({parentElement:parent,model,batchUpdates:true,template:data=>{renders++;return `<p>${data.value}</p>`;}}).initialize();
-    for(let i=1;i<=100;i++){model.value=i;model.emit('change');}
+    for(let i=1;i<=100;i++){model.value=i;model.change();}
     assert.equal(renders,1);assert.equal(frame.queued.size,1);frame.flush();
     assert.equal(renders,2);assert.equal(parent.textContent,'100');
-    model.emit('change');view.render();assert.equal(frame.queued.size,0);assert.equal(renders,3);
-    model.emit('change');view.model=observable('new');assert.equal(frame.queued.size,0);
-    view.model.emit('change');view.destroy();frame.flush();assert.equal(renders,3);assert.equal(parent.childNodes.length,0);
+    model.change();view.render();assert.equal(frame.queued.size,0);assert.equal(renders,3);
+    model.change();view.model=observable('new');assert.equal(frame.queued.size,0);
+    view.model.change();view.destroy();frame.flush();assert.equal(renders,3);assert.equal(parent.childNodes.length,0);
     view.initialize();view.requestRender();view.destroyModelBinding();assert.equal(frame.queued.size,0);view.destroy();
 });
 
 test('synchronous rendering remains default and batching falls back without an animation-frame API', t => {
     const {parent}=setup(t);const model=observable(0);let renders=0;
     const view=new View({parentElement:parent,model,template:data=>{renders++;return `<p>${data.value}</p>`;}}).initialize();
-    model.value=1;model.emit('change');assert.equal(parent.textContent,'1');assert.equal(renders,2);
-    view.batchUpdates=true;model.value=2;model.emit('change');assert.equal(parent.textContent,'2');view.destroy();
+    model.value=1;model.change();assert.equal(parent.textContent,'1');assert.equal(renders,2);
+    view.batchUpdates=true;model.value=2;model.change();assert.equal(parent.textContent,'2');view.destroy();
     const detached=Object.create(View.prototype);detached.element=document;detached.batchUpdates=true;detached.render=()=>detached;
     assert.equal(detached.requestRender(),detached);
 });
@@ -159,13 +178,13 @@ test('owned children are cleaned on replacement and destruction; ownership relea
     const owner=new View({parentElement:parent,template:()=>`<section>${label}</section>`}).initialize();
     const model=observable('child');
     const child=new View({parentElement:owner.element,model,template:()=>'<p>child</p>'}).initialize();
-    owner.addChild(child).addChild(child);assert.equal(model.listenerCount('change'),1);
+    owner.addChild(child).addChild(child);assert.equal(model.listenerCount(),1);
     assert.throws(()=>owner.addChild(owner),/cycles/);assert.throws(()=>child.addChild(owner),/cycles/);
     const other=new View();assert.throws(()=>other.addChild(child),/already has an owner/);
-    owner.render();assert.equal(model.listenerCount('change'),1);
-    label='second';owner.render();assert.equal(model.listenerCount('change'),0);assert.equal(parent.textContent,'second');
+    owner.render();assert.equal(model.listenerCount(),1);
+    label='second';owner.render();assert.equal(model.listenerCount(),0);assert.equal(parent.textContent,'second');
     const released=new View({model});released.initializeModelBinding();owner.addChild(released).releaseChild(released).releaseChild(released);
-    owner.destroy();assert.equal(model.listenerCount('change'),1);released.destroy();
+    owner.destroy();assert.equal(model.listenerCount(),1);released.destroy();
     const direct=new View();other.addChild(direct);direct.destroy();other.destroy();
 });
 
@@ -175,11 +194,11 @@ test('cleanup continues after a child or subclass hook fails', t => {
     class Bad extends View {destroy(){super.destroy();throw Error('child failure');}}
     class Good extends View {destroy(){cleaned++;return super.destroy();}}
     owner.addChild(new Bad()).addChild(new Good());
-    assert.throws(()=>owner.destroy(),/Unable to destroy child/);assert.equal(cleaned,1);assert.equal(model.listenerCount('change'),0);assert.equal(parent.childNodes.length,0);
+    assert.throws(()=>owner.destroy(),/Unable to destroy child/);assert.equal(cleaned,1);assert.equal(model.listenerCount(),0);assert.equal(parent.childNodes.length,0);
     let fail=false,calls=0;
     class Hook extends View {removeListeners(){if(fail)throw Error('hook failure');return this;}}
     const hooked=new Hook({parentElement:parent,model,template:()=>'<button></button>'}).initialize();const root=hooked.element;
     hooked.delegated.on('click','button',()=>calls++);fail=true;
     assert.throws(()=>hooked.destroy(),/hook failure/);root.dispatchEvent(new window.MouseEvent('click'));
-    assert.equal(calls,0);assert.equal(model.listenerCount('change'),0);assert.equal(parent.childNodes.length,0);
+    assert.equal(calls,0);assert.equal(model.listenerCount(),0);assert.equal(parent.childNodes.length,0);
 });

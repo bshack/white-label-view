@@ -2,7 +2,6 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const EventEmitter = require('node:events');
 
 test('exports the View constructor', function() {
     const View = require('../dist/index');
@@ -10,22 +9,27 @@ test('exports the View constructor', function() {
     assert.equal(typeof View, 'function');
 });
 
-test('two-way binding removes only the view listener', function() {
+test('model binding removes only the view listener', function() {
     const View = require('../dist/index');
-    const model = new EventEmitter();
+    const model = new EventTarget();
     const view = Object.create(View.prototype);
-    const externalListener = function() {};
+    let externalCalls = 0;
+    let viewCalls = 0;
     view.model = model;
-    view.modelChangeHandler = function() {};
+    view.modelChangeHandler = function() {viewCalls++;};
     view.modelBindingInitialized = false;
-    model.on('change', externalListener);
+    model.addEventListener('change', () => {externalCalls++;});
 
     view.initializeModelBinding();
     view.initializeModelBinding();
-    assert.equal(model.listenerCount('change'), 2);
+    model.dispatchEvent(new Event('change'));
+    assert.equal(externalCalls, 1);
+    assert.equal(viewCalls, 1);
+
     view.destroyModelBinding();
-
-    assert.deepEqual(model.listeners('change'), [externalListener]);
+    model.dispatchEvent(new Event('change'));
+    assert.equal(externalCalls, 2);
+    assert.equal(viewCalls, 1);
 });
 
 test('render skips unchanged string output before parsing or replacing DOM', function() {

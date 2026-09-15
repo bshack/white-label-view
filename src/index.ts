@@ -1,11 +1,11 @@
 import {isJSXMarkup} from './jsx-runtime.js';
 import type {JSXMarkup} from './jsx-runtime.js';
 
-/** Data source consumed by the rendering lifecycle. */
+/** Data source consumed by the rendering lifecycle. Observable models use the native EventTarget contract. */
 interface ViewModel {
     get?: () => unknown;
-    on?: (event: 'change', callback: () => void) => unknown;
-    removeListener?: (event: 'change', callback: () => void) => unknown;
+    addEventListener?: (event: 'change', callback: EventListener) => unknown;
+    removeEventListener?: (event: 'change', callback: EventListener) => unknown;
 }
 /** Constructor settings; templates must return exactly one root element. */
 interface ViewSettings {
@@ -217,21 +217,23 @@ class View {
         return this;
     }
 
-    /** Subscribe once; observable models must expose a matching removal method. */
+    /** Subscribe once when the model exposes the native EventTarget listener contract. */
     initializeModelBinding() {
         if (this.boundModel !== this.model) {this.destroyModelBinding();}
         if (!this.modelBindingInitialized && this.model &&
-            typeof this.model.on === 'function' && typeof this.model.removeListener === 'function') {
+            typeof this.model.addEventListener === 'function' && typeof this.model.removeEventListener === 'function') {
             this.boundModel = this.model;
-            this.model.on('change', this.modelChangeHandler);
+            this.model.addEventListener('change', this.modelChangeHandler);
             this.modelBindingInitialized = true;
         }
     }
 
-    /** Remove the subscription from the emitter originally bound and cancel queued rendering. */
+    /** Remove the model subscription and cancel queued rendering. */
     destroyModelBinding() {
         this.cancelRender();
-        if (this.modelBindingInitialized) {this.boundModel!.removeListener!('change', this.modelChangeHandler);}
+        if (this.modelBindingInitialized) {
+            this.boundModel!.removeEventListener!('change', this.modelChangeHandler);
+        }
         this.boundModel = undefined;
         this.modelBindingInitialized = false;
     }
