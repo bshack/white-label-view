@@ -2,7 +2,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {JSDOM} = require('jsdom');
-const {EventEmitter} = require('node:events');
 const View = require('../dist');
 function dom(t) {
     const window = new JSDOM('<main></main>').window;
@@ -23,27 +22,27 @@ test('renders trusted single-root HTML without requiring a template engine', t =
     assert.equal(parentElement.firstElementChild.tagName, 'P');
     view.destroy();
 });
-test('renders, observes model updates, preserves unchanged DOM, and tears down', t => {
+test('renders, observes EventTarget model updates, preserves unchanged DOM, and tears down', t => {
     dom(t);
     const parentElement = document.querySelector('main');
-    const model = new EventEmitter();
+    const model = new EventTarget();
     let value = 'first';
     model.get = () => ({value});
     const view = new View({parentElement, model, template: data => `<p>${data.value}</p>`});
     assert.equal(view.initialize(), view);
     assert.equal(parentElement.textContent, 'first');
-    assert.equal(model.listenerCount('change'), 1);
     const first = view.element;
     view.render();
     assert.equal(view.element, first);
     value = 'second';
-    model.emit('change');
+    model.dispatchEvent(new CustomEvent('change', {detail: model.get()}));
     assert.equal(parentElement.textContent, 'second');
     assert.notEqual(view.element, first);
-    assert.equal(model.listenerCount('change'), 1);
     assert.equal(view.destroy(), view);
     assert.equal(parentElement.childNodes.length, 0);
-    assert.equal(model.listenerCount('change'), 0);
+    value = 'third';
+    model.dispatchEvent(new CustomEvent('change', {detail: model.get()}));
+    assert.equal(parentElement.childNodes.length, 0);
     view.destroy();
 });
 test('supports plain models, DOM templates, detached roots, and missing options', t => {
@@ -72,7 +71,7 @@ test('supports plain models, DOM templates, detached roots, and missing options'
     assert.equal(unbound.render(), unbound);
     unbound.template = () => '';
     assert.throws(() => unbound.render(), /root node/);
-    unbound.model = {on() {}};
+    unbound.model = {addEventListener() {}};
     unbound.initializeModelBinding();
     unbound.destroyModelBinding();
     assert.equal(unbound.modelBindingInitialized, false);

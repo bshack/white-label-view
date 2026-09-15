@@ -1,11 +1,11 @@
 import {isJSXMarkup} from './jsx-runtime.js';
 import type {JSXMarkup} from './jsx-runtime.js';
 
-/** Data source consumed by the server rendering lifecycle. */
+/** Data source consumed by the server rendering lifecycle. Observable models use the native EventTarget contract. */
 interface ViewModel {
     get?: () => unknown;
-    on?: (event: 'change', callback: () => void) => unknown;
-    removeListener?: (event: 'change', callback: () => void) => unknown;
+    addEventListener?: (event: 'change', callback: EventListener) => unknown;
+    removeEventListener?: (event: 'change', callback: EventListener) => unknown;
 }
 
 /** Server settings mirror the portable subset of browser View settings. */
@@ -78,13 +78,13 @@ class View {
         if (errors.length) {throw new AggregateError(errors, 'Unable to destroy child views');}
     }
 
-    /** Subscribe once to an observable model. */
+    /** Subscribe once when the model exposes the native EventTarget listener contract. */
     initializeModelBinding() {
         if (this.boundModel !== this.model) {this.destroyModelBinding();}
         if (!this.modelBindingInitialized && this.model &&
-            typeof this.model.on === 'function' && typeof this.model.removeListener === 'function') {
+            typeof this.model.addEventListener === 'function' && typeof this.model.removeEventListener === 'function') {
             this.boundModel = this.model;
-            this.model.on('change', this.modelChangeHandler);
+            this.model.addEventListener('change', this.modelChangeHandler);
             this.modelBindingInitialized = true;
         }
         return this;
@@ -92,7 +92,9 @@ class View {
 
     /** Release the model subscription owned by this view. */
     destroyModelBinding() {
-        if (this.modelBindingInitialized) {this.boundModel!.removeListener!('change', this.modelChangeHandler);}
+        if (this.modelBindingInitialized) {
+            this.boundModel!.removeEventListener!('change', this.modelChangeHandler);
+        }
         this.boundModel = undefined;
         this.modelBindingInitialized = false;
         return this;

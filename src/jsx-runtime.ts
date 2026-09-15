@@ -5,6 +5,10 @@ const booleanAttributes = new Set([
     'nomodule', 'novalidate', 'open', 'playsinline', 'readonly', 'required', 'reversed', 'selected'
 ]);
 const voidElements = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const rawValues = new WeakSet<object>();
+const jsxValues = new WeakSet<object>();
+const validTagName = /^[A-Za-z][A-Za-z0-9:._-]*$/;
+const validAttributeName = /^[A-Za-z_:][A-Za-z0-9:._-]*$/;
 
 export interface RawMarkup {readonly __whiteLabelRawMarkup: true; readonly value: string}
 export interface JSXMarkup {
@@ -18,21 +22,28 @@ export type JSXType = string | JSXComponent | typeof fragment;
 
 /** Mark caller-owned markup as trusted so it is inserted without escaping. */
 export function raw(value: string): RawMarkup {
-    return Object.freeze({__whiteLabelRawMarkup: true as const, value});
+    const trusted = Object.freeze({__whiteLabelRawMarkup: true as const, value});
+    rawValues.add(trusted);
+    return trusted;
 }
 
 function markup(value: string): JSXMarkup {
-    return Object.freeze({
+    const rendered = Object.freeze({
         __whiteLabelJSXMarkup: true as const,
         value,
         toString: () => value
     });
+    jsxValues.add(rendered);
+    return rendered;
 }
 
-/** Identify output created by this JSX runtime. */
+/** Identify output created by this JSX runtime rather than trusting a forgeable marker property. */
 export function isJSXMarkup(value: unknown): value is JSXMarkup {
-    return typeof value === 'object' && value !== null && '__whiteLabelJSXMarkup' in value &&
-        (value as {__whiteLabelJSXMarkup?: unknown}).__whiteLabelJSXMarkup === true;
+    return typeof value === 'object' && value !== null && jsxValues.has(value);
+}
+
+function isRawMarkup(value: object): value is RawMarkup {
+    return rawValues.has(value);
 }
 
 function escapeText(value: string): string {
@@ -51,7 +62,7 @@ function renderChild(child: JSXChild): string {
         return rendered;
     }
     if (typeof child === 'object') {
-        if ('__whiteLabelRawMarkup' in child || isJSXMarkup(child)) {return child.value;}
+        if (isRawMarkup(child) || isJSXMarkup(child)) {return child.value;}
         throw new TypeError('Unsupported JSX child object');
     }
     return escapeText(String(child));
@@ -63,18 +74,29 @@ function attributeName(name: string): string {
     return name;
 }
 
+function assertAttributeName(name: string): void {
+    if (!validAttributeName.test(name) || /^on/i.test(name)) {
+        throw new TypeError(`Unsupported JSX attribute name ${name}`);
+    }
+}
+
 function renderStyle(value: Record<string, unknown>): string {
     let rendered = '';
     for (const [name, entry] of Object.entries(value)) {
         if (entry === null || entry === undefined || entry === false) {continue;}
+        if (!/^--[A-Za-z0-9_-]+$/.test(name) && !/^[A-Za-z][A-Za-z0-9]*$/.test(name)) {
+            throw new TypeError(`Unsupported JSX style property ${name}`);
+        }
         if (rendered) {rendered += ';';}
-        rendered += `${name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}:${String(entry)}`;
+        const renderedName = name.startsWith('--') ? name : name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+        rendered += `${renderedName}:${String(entry)}`;
     }
     return rendered;
 }
 
 function renderAttribute(name: string, value: unknown): string {
     const renderedName = attributeName(name);
+    assertAttributeName(renderedName);
     if (value === null || value === undefined || value === false) {return '';}
     if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'object' && !Array.isArray(value) && name !== 'style') {
         throw new TypeError(`Unsupported JSX attribute value for ${name}`);
@@ -90,6 +112,7 @@ function renderAttribute(name: string, value: unknown): string {
 }
 
 function renderElement(type: string, props: Record<string, unknown>): string {
+    if (!validTagName.test(type)) {throw new TypeError(`Unsupported JSX tag name ${type}`);}
     const children = props.children as JSXChild;
     let attributes = '';
     for (const [name, value] of Object.entries(props)) {

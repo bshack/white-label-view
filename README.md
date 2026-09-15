@@ -137,7 +137,9 @@ const view = new View({
 }).initialize();
 ```
 
-JSX child text and attribute values are escaped by default. Fragments, child arrays, function components, boolean attributes, `className`, `htmlFor`, and style objects are supported. Intrinsic event-handler attributes such as `onClick` are not serialized; use delegated browser events instead.
+JSX child text and ordinary attribute values are HTML-escaped by default. Fragments, child arrays, function components, boolean attributes, `className`, `htmlFor`, and style objects are supported. Invalid intrinsic tag or attribute names and intrinsic `on*` event-handler attributes throw `TypeError`; use delegated browser events instead. JSX and `raw()` values are recognized by runtime-owned identity rather than by forgeable marker-shaped objects.
+
+Escaping prevents ordinary text/attribute markup injection, but it is not a general-purpose sanitizer or policy engine. Applications must still validate URL-bearing values such as `href`/`src`, CSS/style values, and any other context whose safety depends on semantic meaning rather than HTML delimiters.
 
 For independently trusted or sanitized markup, `raw()` is an explicit escape hatch:
 
@@ -185,7 +187,7 @@ Browser templates must resolve to exactly one element. Empty strings, text nodes
 | `afterMount()` | Extension hook after insertion and listener setup. | The same `View` instance by default. |
 | `destroy()` | Release listeners, model binding, children, queued work, and DOM root. | The same `View` instance after cleanup. |
 
-Delegated-event registry methods `on()`, `off()`, and `clear()` each return that registry for chaining.
+Delegated-event registry methods `on()`, `off()`, and `clear()` each return that registry for chaining. These methods belong to the delegated DOM-event helper; they are not EventEmitter-style model binding.
 
 ## Server public API
 
@@ -252,7 +254,7 @@ Return `true` when the update was handled. Return `false` to fall back to normal
 
 Model binding is one-way: model changes trigger rendering; form input is not automatically written back to state.
 
-Observable models must provide both `on()` and `removeListener()` so View can release its subscription. `setModel(nextModel)` moves the binding and renders immediately.
+Observable models use the native `EventTarget` contract and must provide both `addEventListener()` and `removeEventListener()` so View can subscribe to and release the `change` event. EventEmitter-style `on()` / `removeListener()` model bindings are not supported in View 6. `setModel(nextModel)` moves the binding and renders immediately.
 
 Set `batchUpdates: true` in Browser View to coalesce model-driven renders into one `requestAnimationFrame`. Manual `render()` remains synchronous. Server View always renders model changes synchronously.
 
@@ -297,7 +299,7 @@ npm run audit
 npm pack --dry-run
 ```
 
-Coverage enforces 100% statements, branches, functions, and lines per implementation file. CI builds authored source, uploads generated artifacts for inspection, verifies public package subpaths from the packed artifact, and tests packed-package compatibility across npm, Yarn, and pnpm.
+Coverage enforces 100% statements, branches, functions, and lines per implementation file. CI verifies both the documented Node 22.18 minimum and the primary Node 24 line, builds authored source, uploads generated artifacts for inspection, verifies public package subpaths from the packed artifact, tests packed-package compatibility across npm, Yarn, and pnpm, and runs the isolated template-engine compatibility matrix.
 
 Edit `src/*.ts` and regenerate `dist`; do not edit generated files directly.
 
