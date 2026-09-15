@@ -4,7 +4,7 @@ These instructions are more specific than the repository-root agent guide for fi
 
 ## View 6 public contract
 
-- Observable models bind through the standards-based `addEventListener()` / `removeEventListener()` contract. Do not reintroduce EventEmitter-style `on()` / `removeListener()` model adapters.
+- Observable models bind through the standards-based `addEventListener()` / `removeEventListener()` contract.
 - Keep browser and server rendering entry points distinct. The server entry point must remain DOM-free.
 - JSX is optional and must remain framework-independent; do not add React, Preact, or a third-party template-engine dependency to the package.
 - Ordinary JSX child text and ordinary attribute values are HTML-escaped. Invalid intrinsic tag/attribute names and intrinsic `on*` event-handler attributes are rejected.
