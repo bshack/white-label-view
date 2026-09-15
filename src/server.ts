@@ -1,13 +1,11 @@
 import {isJSXMarkup} from './jsx-runtime.js';
 import type {JSXMarkup} from './jsx-runtime.js';
 
-/** Data source consumed by the server rendering lifecycle. EventTarget is preferred; emitter methods are legacy-compatible. */
+/** Data source consumed by the server rendering lifecycle. Observable models use the native EventTarget contract. */
 interface ViewModel {
     get?: () => unknown;
     addEventListener?: (event: 'change', callback: EventListener) => unknown;
     removeEventListener?: (event: 'change', callback: EventListener) => unknown;
-    on?: (event: 'change', callback: () => void) => unknown;
-    removeListener?: (event: 'change', callback: () => void) => unknown;
 }
 
 /** Server settings mirror the portable subset of browser View settings. */
@@ -27,7 +25,6 @@ class View {
     modelBindingInitialized = false;
     private currentModel?: object & ViewModel;
     private boundModel?: object & ViewModel;
-    private modelBindingCleanup?: () => void;
     private children = new Set<View>();
     private owner?: View;
 
@@ -81,30 +78,23 @@ class View {
         if (errors.length) {throw new AggregateError(errors, 'Unable to destroy child views');}
     }
 
-    /** Subscribe once to an observable model, preferring the standards-based EventTarget contract. */
+    /** Subscribe once when the model exposes the native EventTarget listener contract. */
     initializeModelBinding() {
         if (this.boundModel !== this.model) {this.destroyModelBinding();}
-        if (!this.modelBindingInitialized && this.model) {
-            const model = this.model;
-            if (typeof model.addEventListener === 'function' && typeof model.removeEventListener === 'function') {
-                this.boundModel = model;
-                model.addEventListener('change', this.modelChangeHandler);
-                this.modelBindingCleanup = () => model.removeEventListener!('change', this.modelChangeHandler);
-                this.modelBindingInitialized = true;
-            } else if (typeof model.on === 'function' && typeof model.removeListener === 'function') {
-                this.boundModel = model;
-                model.on('change', this.modelChangeHandler);
-                this.modelBindingCleanup = () => model.removeListener!('change', this.modelChangeHandler);
-                this.modelBindingInitialized = true;
-            }
+        if (!this.modelBindingInitialized && this.model &&
+            typeof this.model.addEventListener === 'function' && typeof this.model.removeEventListener === 'function') {
+            this.boundModel = this.model;
+            this.model.addEventListener('change', this.modelChangeHandler);
+            this.modelBindingInitialized = true;
         }
         return this;
     }
 
-    /** Release the model subscription originally bound by this view. */
+    /** Release the model subscription owned by this view. */
     destroyModelBinding() {
-        this.modelBindingCleanup?.();
-        this.modelBindingCleanup = undefined;
+        if (this.modelBindingInitialized) {
+            this.boundModel!.removeEventListener!('change', this.modelChangeHandler);
+        }
         this.boundModel = undefined;
         this.modelBindingInitialized = false;
         return this;
