@@ -137,7 +137,7 @@ const view = new View({
 }).initialize();
 ```
 
-JSX child text and ordinary attribute values are HTML-escaped by default. Fragments, child arrays, function components, boolean attributes, `className`, `htmlFor`, and style objects are supported. Invalid intrinsic tag or attribute names and intrinsic `on*` event-handler attributes throw `TypeError`; use delegated browser events instead. JSX and `raw()` values are recognized by runtime-owned identity rather than by forgeable marker-shaped objects.
+JSX child text and ordinary attribute values are HTML-escaped by default. Fragments, child arrays, function components, boolean attributes, `className`, `htmlFor`, and style objects are supported. Invalid intrinsic tag or attribute names and intrinsic `on*` event-handler attributes throw `TypeError`; use browser listeners instead. JSX and `raw()` values are recognized by runtime-owned identity rather than by forgeable marker-shaped objects.
 
 Escaping prevents ordinary text/attribute markup injection, but it is not a general-purpose sanitizer or policy engine. Applications must still validate URL-bearing values such as `href`/`src`, CSS/style values, and any other context whose safety depends on semantic meaning rather than HTML delimiters.
 
@@ -169,6 +169,30 @@ A successful mount or replacement installs the root, initializes model binding w
 
 Browser templates must resolve to exactly one element. Empty strings, text nodes, comments, multiple roots, top-level multi-element fragments, `null`, and other non-element results throw `TypeError` without replacing the last successful root.
 
+## Simple click event
+
+Use `addListeners()` and `removeListeners()` when a View owns a browser event:
+
+```js
+class ButtonView extends View {
+    handleClick = () => {
+        console.log('Clicked');
+    };
+
+    addListeners() {
+        this.element.addEventListener('click', this.handleClick);
+        return this;
+    }
+
+    removeListeners() {
+        this.element.removeEventListener('click', this.handleClick);
+        return this;
+    }
+}
+```
+
+The same callback reference is used for registration and cleanup. View calls `addListeners()` after the root is installed and `removeListeners()` before replacement or destruction.
+
 ## Browser public API
 
 | Method | Behavior | Returns |
@@ -187,7 +211,7 @@ Browser templates must resolve to exactly one element. Empty strings, text nodes
 | `afterMount()` | Extension hook after insertion and listener setup. | The same `View` instance by default. |
 | `destroy()` | Release listeners, model binding, children, queued work, and DOM root. | The same `View` instance after cleanup. |
 
-Delegated-event registry methods `on()`, `off()`, and `clear()` each return that registry for chaining. These methods belong to the delegated DOM-event helper; they are not EventEmitter-style model binding.
+Delegated-event registry methods `on()`, `off()`, and `clear()` each return that registry for chaining. These methods belong to the delegated DOM-event helper.
 
 ## Server public API
 
@@ -205,7 +229,7 @@ Delegated-event registry methods `on()`, `off()`, and `clear()` each return that
 
 ## Delegated browser events
 
-Subclass View when a feature owns browser behavior:
+Use the delegated helper when one View root owns events for matching descendants:
 
 ```js
 class MenuView extends View {
@@ -254,7 +278,7 @@ Return `true` when the update was handled. Return `false` to fall back to normal
 
 Model binding is one-way: model changes trigger rendering; form input is not automatically written back to state.
 
-Observable models use the native `EventTarget` contract and must provide both `addEventListener()` and `removeEventListener()` so View can subscribe to and release the `change` event. EventEmitter-style `on()` / `removeListener()` model bindings are not supported in View 6. `setModel(nextModel)` moves the binding and renders immediately.
+Observable models use the native `EventTarget` contract and provide both `addEventListener()` and `removeEventListener()` so View can subscribe to and release the `change` event. `setModel(nextModel)` moves the binding and renders immediately.
 
 Set `batchUpdates: true` in Browser View to coalesce model-driven renders into one `requestAnimationFrame`. Manual `render()` remains synchronous. Server View always renders model changes synchronously.
 
