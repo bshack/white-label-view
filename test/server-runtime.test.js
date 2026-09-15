@@ -13,6 +13,13 @@ function withoutBrowserGlobals(t) {
     });
 }
 
+function observable(value) {
+    const model = new EventTarget();
+    model.value = value;
+    model.get = function() {return {value: this.value};};
+    return model;
+}
+
 test('server view renders JSX with escaping and no DOM globals', t => {
     withoutBrowserGlobals(t);
     const View = require('../dist/server');
@@ -29,38 +36,29 @@ test('server view renders JSX with escaping and no DOM globals', t => {
     assert.equal(view.toString(), '<main class="profile"><h1>&lt;Ada &amp; Grace&gt;</h1><p>trusted</p></main>');
 });
 
-test('server view mirrors model binding, setModel, child ownership, and teardown', t => {
+test('server view mirrors EventTarget model binding, setModel, child ownership, and teardown', t => {
     withoutBrowserGlobals(t);
     const View = require('../dist/server');
-    const listeners = new Set();
-    const model = {
-        value: 'first',
-        get() {return {value: this.value};},
-        on(event, callback) {assert.equal(event, 'change'); listeners.add(callback);},
-        removeListener(event, callback) {assert.equal(event, 'change'); listeners.delete(callback);}
-    };
+    const model = observable('first');
     const parent = new View({model, template: data => `<main>${data.value}</main>`});
     const child = new View({template: () => '<aside>child</aside>'});
 
     parent.addChild(child).initialize();
-    assert.equal(listeners.size, 1);
     model.value = 'second';
-    for (const callback of listeners) {callback();}
+    model.dispatchEvent(new CustomEvent('change', {detail: model.get()}));
     assert.equal(parent.toString(), '<main>second</main>');
 
     parent.model = model;
-    assert.equal(listeners.size, 1);
-    const replacementListeners = new Set();
-    const replacement = {
-        value: 'third',
-        get() {return {value: this.value};},
-        on(_event, callback) {replacementListeners.add(callback);},
-        removeListener(_event, callback) {replacementListeners.delete(callback);}
-    };
+    const replacement = observable('third');
     assert.equal(parent.setModel(replacement), parent);
-    assert.equal(listeners.size, 0);
-    assert.equal(replacementListeners.size, 1);
     assert.equal(parent.toString(), '<main>third</main>');
+
+    model.value = 'ignored';
+    model.dispatchEvent(new CustomEvent('change', {detail: model.get()}));
+    assert.equal(parent.toString(), '<main>third</main>');
+    replacement.value = 'fourth';
+    replacement.dispatchEvent(new CustomEvent('change', {detail: replacement.get()}));
+    assert.equal(parent.toString(), '<main>fourth</main>');
 
     assert.throws(() => child.addChild(parent), /cycles/);
     const other = new View();
@@ -69,7 +67,9 @@ test('server view mirrors model binding, setModel, child ownership, and teardown
 
     assert.equal(parent.destroy(), parent);
     assert.equal(parent.toString(), '');
-    assert.equal(replacementListeners.size, 0);
+    replacement.value = 'ignored after destroy';
+    replacement.dispatchEvent(new CustomEvent('change', {detail: replacement.get()}));
+    assert.equal(parent.toString(), '');
 });
 
 test('server view supports empty lifecycle and plain model data', t => {
@@ -110,7 +110,6 @@ test('server view continues child cleanup and reports aggregate failures', t => 
     const owned = new View();
     owner.addChild(owned);
     assert.equal(owned.destroy(), owned);
-    // Destroying an owned child must release it so it can be owned again.
     assert.equal(owner.addChild(owned), owner);
 });
 
