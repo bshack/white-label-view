@@ -261,12 +261,12 @@ class View {
     render() {
         this.cancelRender();
         const attached = this.parentElement?.contains(this.element);
-        if (typeof this.template !== 'function') {return attached ? this.activateRoot() : this;}
         const data = this.model && typeof this.model.get === 'function' ? this.model.get() : this.model || {};
         if (attached && this.update(this.element, data)) {
             this.renderedTemplate = undefined;
             return this.activateRoot();
         }
+        if (typeof this.template !== 'function') {return attached ? this.activateRoot() : this;}
         let newElement = this.template(data);
         const html = isJSXMarkup(newElement) ? newElement.value : typeof newElement === 'string' ? newElement : undefined;
         if (html !== undefined) {
