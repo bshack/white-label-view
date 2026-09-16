@@ -234,9 +234,9 @@ class View {
     /** Subscribe once when the model exposes the native EventTarget listener contract. */
     initializeModelBinding() {
         if (this.boundModel !== this.model) {this.destroyModelBinding();}
-        if (!this.modelBindingInitialized && this.model &&
-            typeof this.model.addEventListener === 'function' && typeof this.model.removeEventListener === 'function') {
-            const model = this.model;
+        const model = this.model;
+        if (!this.modelBindingInitialized && model &&
+            typeof model.addEventListener === 'function' && typeof model.removeEventListener === 'function') {
             model.addEventListener('change', this.modelChangeHandler);
             this.boundModel = model;
             this.modelBindingInitialized = true;
@@ -283,7 +283,7 @@ class View {
                 try { this.destroyModelBinding(); } catch (cleanupError) {appendError(errors, cleanupError);}
             }
             if (errors.length === 1) {throw errors[0];}
-            throw new AggregateError(errors, 'Unable to mount view');
+            throw new AggregateError(errors, 'Unable to mount view', {cause: error});
         }
     }
 
