@@ -165,7 +165,9 @@ See [Template engines and JSX options](https://whitelabeljs.org/docs/view/#templ
 
 `initialize()` performs a synchronous `render()`. When a model exposes `get()`, View passes `model.get()` to the template; otherwise it passes the model itself.
 
-A successful mount or replacement installs the root, initializes model binding when possible, calls `addListeners()`, and then calls `afterMount()`. Equal HTML/JSX output skips reparsing while attached, and equal DOM trees preserve the existing root.
+A successful mount or replacement installs the root, initializes model binding when possible, calls `addListeners()`, and then calls `afterMount()`. The root is recorded as fully mounted only after those hooks succeed. If either hook throws, View rolls back its delegated registrations, calls `removeListeners()` so subclass-owned listeners can be released, removes a model binding created by that failed mount attempt, and leaves the lifecycle retryable on a later `render()` or `initialize()`.
+
+Equal HTML/JSX output skips reparsing while attached, and equal DOM trees preserve the existing root.
 
 Browser templates must resolve to exactly one element. Empty strings, text nodes, comments, multiple roots, top-level multi-element fragments, `null`, and other non-element results throw `TypeError` without replacing the last successful root.
 
@@ -191,7 +193,7 @@ class ButtonView extends View {
 }
 ```
 
-The same callback reference is used for registration and cleanup. View calls `addListeners()` after the root is installed and `removeListeners()` before replacement or destruction.
+The same callback reference is used for registration and cleanup. View calls `addListeners()` after the root is installed and `removeListeners()` before replacement, destruction, or rollback of a failed mount. Keep `removeListeners()` safe when `addListeners()` completed only partially.
 
 ## Browser public API
 
@@ -205,13 +207,21 @@ The same callback reference is used for registration and cleanup. View calls `ad
 | `addChild(child)` | Register child ownership. | The parent `View`; throws `TypeError` for cycles or a child already owned elsewhere. |
 | `releaseChild(child)` | Release ownership without destroying the child. | The parent `View`. |
 | `initializeModelBinding()` | Subscribe to model `change` events. | `undefined`; updates binding state in place. |
-| `destroyModelBinding()` | Release model subscription and queued work. | `undefined`; updates binding state in place. |
-| `addListeners()` | Extension hook after root installation. | The same `View` instance by default. |
-| `removeListeners()` | Extension hook before replacement or destruction. | The same `View` instance by default. |
+| `destroyModelBinding()` | Release model subscription and queued work. | `undefined`; updates binding state in place even if external listener removal throws. |
+| `addListeners()` | Extension hook during root activation. | The same `View` instance by default. |
+| `removeListeners()` | Extension hook before replacement/destruction and during failed-mount rollback. | The same `View` instance by default. |
 | `afterMount()` | Extension hook after insertion and listener setup. | The same `View` instance by default. |
-| `destroy()` | Release listeners, model binding, children, queued work, and DOM root. | The same `View` instance after cleanup. |
+| `destroy()` | Best-effort release of listeners, model binding, children, queued work, and DOM root. | The same `View` after successful cleanup; throws the cleanup failure or an `AggregateError` after state reset when cleanup fails. |
 
 Delegated-event registry methods `on()`, `off()`, and `clear()` each return that registry for chaining. These methods belong to the delegated DOM-event helper.
+
+### Lifecycle failure handling
+
+Mount setup is transactional from View's perspective. A root is not considered mounted until `addListeners()` and `afterMount()` both succeed. If setup fails, View attempts every rollback step it owns and preserves cleanup failures together with the original mount failure. A subsequent render can retry the same root rather than silently skipping mount hooks.
+
+Teardown is best-effort. `destroy()` independently attempts owned-child cleanup, subclass listener cleanup, delegated-listener cleanup, model unsubscription, DOM removal, and lifecycle reset. Internal model-binding and queued-frame state are cleared before external cleanup callbacks that may throw. A single cleanup error is rethrown after cleanup finishes; multiple material failures are reported with `AggregateError`. After teardown attempts complete, the View holds a fresh detached root and delegated registry so the instance is reusable even when `destroy()` reports a cleanup failure.
+
+Subclass cleanup hooks should therefore be idempotent enough to run after partial setup and should not assume every earlier setup step completed.
 
 ## Server public API
 
