@@ -27,6 +27,12 @@ interface Registration {
     signal?: AbortSignal;
     abort: () => void;
 }
+
+function appendError(errors: unknown[], error: unknown) {
+    if (error instanceof AggregateError) {errors.push(...error.errors);}
+    else {errors.push(error);}
+}
+
 /** Native event delegation scoped to a view root. */
 class DelegatedEvents {
     listeners: Registration[] = [];
@@ -159,9 +165,11 @@ class View {
 
     private cancelRender() {
         if (this.pendingFrame !== undefined) {
-            this.frameWindow!.cancelAnimationFrame(this.pendingFrame);
+            const pendingFrame = this.pendingFrame;
+            const frameWindow = this.frameWindow!;
             this.pendingFrame = undefined;
             this.frameWindow = undefined;
+            frameWindow.cancelAnimationFrame(pendingFrame);
         }
     }
 
@@ -192,28 +200,34 @@ class View {
         if (errors.length) {throw new AggregateError(errors, 'Unable to destroy child views');}
     }
 
-    /** Release listeners and owned children even if a subclass cleanup hook throws. */
+    /** Release every root-owned resource and preserve all cleanup failures. */
     private releaseRoot() {
-        try { this.destroyChildren(); } finally {
-            try { this.removeListeners(); } finally {
-                this.delegated.clear();
-                this.mountedElement = undefined;
-            }
-        }
+        const errors: unknown[] = [];
+        this.mountedElement = undefined;
+        try { this.destroyChildren(); } catch (error) { appendError(errors, error); }
+        try { this.removeListeners(); } catch (error) { appendError(errors, error); }
+        try { this.delegated.clear(); } catch (error) { appendError(errors, error); }
+        if (errors.length === 1) {throw errors[0];}
+        if (errors.length > 1) {throw new AggregateError(errors, 'Unable to release view root');}
     }
 
     /** Remove the owned root from its actual parent, including nested roots. May be initialized again. */
     destroy() {
-        this.cancelRender();
-        this.owner?.releaseChild(this);
+        const errors: unknown[] = [];
         const ownerDocument = this.element.ownerDocument!;
-        try { this.releaseRoot(); } finally {
-            this.destroyModelBinding();
-            this.element.parentNode?.removeChild(this.element);
-            this.element = ownerDocument.createElement('div');
-            this.delegated = this.delegate();
-            this.renderedTemplate = undefined;
+        try { this.cancelRender(); } catch (error) {appendError(errors, error);}
+        try { this.owner?.releaseChild(this); } catch (error) {appendError(errors, error);}
+        try { this.releaseRoot(); } catch (error) {appendError(errors, error);}
+        try { this.destroyModelBinding(); } catch (error) {appendError(errors, error);}
+        try { this.element.parentNode?.removeChild(this.element); } catch (error) {appendError(errors, error);}
+        this.element = ownerDocument.createElement('div');
+        try { this.delegated = this.delegate(); } catch (error) {
+            appendError(errors, error);
+            this.delegated = new DelegatedEvents(this.element as Element);
         }
+        this.renderedTemplate = undefined;
+        if (errors.length === 1) {throw errors[0];}
+        if (errors.length > 1) {throw new AggregateError(errors, 'Unable to destroy view');}
         return this;
     }
 
@@ -222,8 +236,9 @@ class View {
         if (this.boundModel !== this.model) {this.destroyModelBinding();}
         if (!this.modelBindingInitialized && this.model &&
             typeof this.model.addEventListener === 'function' && typeof this.model.removeEventListener === 'function') {
-            this.boundModel = this.model;
-            this.model.addEventListener('change', this.modelChangeHandler);
+            const model = this.model;
+            model.addEventListener('change', this.modelChangeHandler);
+            this.boundModel = model;
             this.modelBindingInitialized = true;
         }
     }
@@ -231,16 +246,18 @@ class View {
     /** Remove the model subscription and cancel queued rendering. */
     destroyModelBinding() {
         this.cancelRender();
-        if (this.modelBindingInitialized) {
-            this.boundModel!.removeEventListener!('change', this.modelChangeHandler);
-        }
+        const boundModel = this.boundModel;
+        const initialized = this.modelBindingInitialized;
         this.boundModel = undefined;
         this.modelBindingInitialized = false;
+        if (initialized) {
+            boundModel!.removeEventListener!('change', this.modelChangeHandler);
+        }
     }
 
     /** Called once for each mounted root, including adopted existing markup. */
     addListeners() { return this; }
-    /** Called before root replacement or destruction. */
+    /** Called before root replacement or destruction and during failed-mount rollback. */
     removeListeners() { return this; }
     /** Called after insertion/adoption and listener setup; safe for focus and parent-relative measurement. */
     afterMount() { return this; }
@@ -248,13 +265,26 @@ class View {
     delegate(scope?: Element) { return new DelegatedEvents(scope || this.element as Element); }
 
     private activateRoot() {
+        const bindingWasInitialized = this.modelBindingInitialized;
         this.initializeModelBinding();
-        if (this.mountedElement !== this.element) {
-            this.mountedElement = this.element;
+        if (this.mountedElement === this.element) {return this;}
+        const errors: unknown[] = [];
+        try {
             this.addListeners();
             this.afterMount();
+            this.mountedElement = this.element;
+            return this;
+        } catch (error) {
+            appendError(errors, error);
+            this.mountedElement = undefined;
+            try { this.removeListeners(); } catch (cleanupError) {appendError(errors, cleanupError);}
+            try { this.delegated.clear(); } catch (cleanupError) {appendError(errors, cleanupError);}
+            if (!bindingWasInitialized) {
+                try { this.destroyModelBinding(); } catch (cleanupError) {appendError(errors, cleanupError);}
+            }
+            if (errors.length === 1) {throw errors[0];}
+            throw new AggregateError(errors, 'Unable to mount view');
         }
-        return this;
     }
 
     /** Render synchronously, preserving equal roots while ensuring their lifecycle is initialized. */
