@@ -96,6 +96,24 @@ test('failed afterMount aggregates rollback failures without marking the root mo
     assert.equal(view.delegated.listeners.length, 0);
 });
 
+test('failed mount preserves delegated cleanup failures', t => {
+    dom(t);
+    const parentElement = document.querySelector('main');
+
+    class BrokenDelegatedRollbackView extends View {
+        addListeners() {
+            this.delegated.clear = () => {throw new Error('delegated rollback');};
+            throw new Error('mount failed');
+        }
+    }
+
+    const view = new BrokenDelegatedRollbackView({parentElement, template: () => '<div>broken</div>'});
+    assert.throws(() => view.initialize(), error => {
+        assert.deepEqual(messages(error), ['mount failed', 'delegated rollback']);
+        return true;
+    });
+});
+
 test('failed replacement preserves an already-active model binding for retry', t => {
     dom(t);
     const parentElement = document.querySelector('main');
@@ -170,6 +188,26 @@ test('destroy attempts every cleanup phase and preserves all failures', t => {
     assert.equal(view.modelBindingInitialized, false);
     assert.equal(view.element.parentNode, null);
     assert.equal(view.delegated.scope, view.element);
+});
+
+test('destroy preserves cancel, owner-release, and delegated-registry cleanup failures', t => {
+    const window = dom(t);
+    const parentElement = document.querySelector('main');
+    window.requestAnimationFrame = () => 7;
+    window.cancelAnimationFrame = () => {throw new Error('frame cleanup');};
+
+    const owner = new View();
+    const child = new View({parentElement, batchUpdates: true, template: () => '<div>child</div>'}).initialize();
+    owner.addChild(child);
+    owner.releaseChild = () => {throw new Error('owner cleanup');};
+    child.requestRender();
+    child.delegated.clear = () => {throw new Error('delegated cleanup');};
+
+    assert.throws(() => child.destroy(), error => {
+        assert.deepEqual(messages(error), ['frame cleanup', 'owner cleanup', 'delegated cleanup']);
+        return true;
+    });
+    assert.equal(child.element.parentNode, null);
 });
 
 test('destroy rethrows a single cleanup failure after resetting reusable state', t => {
