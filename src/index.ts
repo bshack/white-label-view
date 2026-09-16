@@ -29,8 +29,7 @@ interface Registration {
 }
 
 function appendError(errors: unknown[], error: unknown) {
-    if (error instanceof AggregateError) {errors.push(...error.errors);}
-    else {errors.push(error);}
+    errors.push(error);
 }
 
 /** Native event delegation scoped to a view root. */
