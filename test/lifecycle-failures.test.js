@@ -14,7 +14,9 @@ function dom(t) {
 }
 
 function messages(error) {
-    return error instanceof AggregateError ? error.errors.map(item => item.message) : [error.message];
+    return error instanceof AggregateError
+        ? error.errors.flatMap(messages)
+        : [error.message];
 }
 
 test('failed addListeners rolls back owned listeners and can retry cleanly', t => {
@@ -72,12 +74,17 @@ test('failed afterMount aggregates rollback failures without marking the root mo
     };
 
     class BrokenMountView extends View {
+        mountStarted = false;
         addListeners() {
+            this.mountStarted = true;
             this.delegated.on('click', 'div', () => {});
             return this;
         }
         afterMount() {throw new Error('after mount');}
-        removeListeners() {throw new Error('listener cleanup');}
+        removeListeners() {
+            if (this.mountStarted) {throw new Error('listener cleanup');}
+            return this;
+        }
     }
 
     const view = new BrokenMountView({parentElement, model, template: () => '<div>broken</div>'});
