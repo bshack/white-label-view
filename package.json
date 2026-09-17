@@ -1,7 +1,7 @@
 {
   "name": "white-label-view",
-  "version": "6.0.0",
-  "description": "Framework-independent TypeScript rendering and lifecycle for browser, server, and request-scoped Node.js function applications, with optional JSX and SSR.",
+  "version": "7.0.0",
+  "description": "Framework-independent TypeScript rendering and lifecycle for progressive enhancement, existing server-rendered DOM, SSR, serverless functions, and tagged HTML templates.",
   "sideEffects": false,
   "main": "dist/index.js",
   "files": [
@@ -29,15 +29,19 @@
     "typescript",
     "view",
     "rendering",
-    "jsx",
-    "jsx-without-react",
+    "html",
+    "tagged-template",
+    "html-template",
     "dom",
     "server-rendering",
+    "server-rendered",
     "ssr",
     "serverless",
     "template-engine",
     "delegated-events",
     "progressive-enhancement",
+    "incremental-adoption",
+    "html-first",
     "framework-independent",
     "browser",
     "node",
@@ -51,7 +55,7 @@
   },
   "homepage": "https://whitelabeljs.org/docs/view/",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "test": "node --run build && node --run test:types && node --run test:unit",
     "audit": "npm audit --audit-level=high",
     "benchmark": "node --run build && node benchmark/view.bench.js",
@@ -108,15 +112,10 @@
       "require": "./dist/server.js",
       "default": "./dist/server.js"
     },
-    "./jsx-runtime": {
-      "types": "./dist/jsx-runtime.d.ts",
-      "require": "./dist/jsx-runtime.js",
-      "default": "./dist/jsx-runtime.js"
-    },
-    "./jsx-dev-runtime": {
-      "types": "./dist/jsx-runtime.d.ts",
-      "require": "./dist/jsx-runtime.js",
-      "default": "./dist/jsx-runtime.js"
+    "./html": {
+      "types": "./dist/html.d.ts",
+      "require": "./dist/html.js",
+      "default": "./dist/html.js"
     }
   }
 }

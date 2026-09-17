@@ -2,7 +2,7 @@
 
 > Rendering and lifecycle without a component framework.
 
-`white-label-view` is a framework-independent TypeScript rendering and lifecycle library for browser and server applications. It supports DOM rendering, model-driven updates, delegated events, batching, child ownership, server-side string rendering, and optional JSX without React.
+`white-label-view` is a framework-independent TypeScript rendering and lifecycle library for browser and server applications. It supports existing DOM adoption, model-driven updates, delegated events, batching, child ownership, server-side rendering, and first-party tagged HTML templates.
 
 [Documentation](https://whitelabeljs.org/docs/view/) · [API reference](https://whitelabeljs.org/api/#view) · [Demo site](https://whitelabeljs.org/)
 
@@ -21,12 +21,22 @@ Use it independently or compose it with the rest of White Label:
 
 The package has no runtime dependency on the other White Label packages. It does not bundle React, Preact, a CSS framework, sanitizer, state library, component framework, or third-party template engine.
 
+## Where it fits
+
+View is a strong fit when an application needs rendering lifecycle **without handing the whole page to a component framework**. Common cases include progressively enhanced public sites, server-rendered commerce or CMS pages, account and form experiences, small application islands, existing applications being modernized incrementally, and server-side HTML rendering.
+
+An existing server-rendered element can be adopted directly. If an in-place `update()` hook handles the change, no client template is required at all. That makes View useful when the host platform should remain responsible for initial HTML while White Label owns only a narrow interactive region.
+
+For public content, the recommended model is meaningful initial HTML first, then selective browser enhancement. View intentionally does not provide automatic hydration or a virtual DOM reconciliation layer.
+
+See the [incremental server-rendered application guide](https://whitelabeljs.org/guides/incremental-javascript-for-server-rendered-apps/) for a complete integration pattern.
+
 ## Requirements
 
 - Node.js `^22.18.0` or `>=24.11.0` for installation, development, and server rendering.
 - npm, Yarn, and pnpm are supported for installation; see [`PACKAGE_MANAGERS.md`](PACKAGE_MANAGERS.md).
 - A browser DOM only when using the default browser entrypoint.
-- No `window` or `document` globals are required by `white-label-view/server`.
+- No `window` or `document` globals are required by `white-label-view/server` or `white-label-view/html`.
 
 ## Install
 
@@ -38,146 +48,197 @@ npm install white-label-view
 
 Browser:
 
-```js
+```ts
 import View from 'white-label-view';
 ```
 
 Server:
 
-```js
+```ts
 import View from 'white-label-view/server';
 ```
 
-## One rendering model, explicit runtime boundaries
+First-party HTML templates:
 
-### Browser
+```ts
+import {attributes, html, unsafeHTML} from 'white-label-view/html';
+```
 
-```js
+## First-party tagged HTML templates
+
+Tagged template literals are the first-party White Label template syntax. They are ordinary JavaScript/TypeScript syntax and require no JSX compiler mode or proprietary transform.
+
+```ts
 import View from 'white-label-view';
-import {Model} from 'white-label-model';
-
-const model = new Model({name: 'Ada'});
-const parentElement = document.querySelector('main');
+import {html} from 'white-label-view/html';
 
 const view = new View({
-    parentElement,
-    model,
+    parentElement: document.querySelector('main')!,
+    model: {name: '<Ada & Grace>'},
     template: data => {
-        const section = document.createElement('section');
-        section.textContent = `Hello, ${data.name}`;
-        return section;
+        const profile = data as {name: string};
+        return html`
+            <section class="profile">
+                <h1>Hello, ${profile.name}</h1>
+            </section>
+        `;
     }
-}).initialize(); // Returns the View instance after the initial synchronous render.
+}).initialize();
+```
+
+Normal text and quoted-attribute interpolations are HTML-escaped. Nested `html`` ` results and arrays of tagged-template results compose without double escaping. `null`, `undefined`, and booleans render no text; numbers and bigints render as text.
+
+The tag rejects ambiguous or dangerous interpolation locations such as tag names, unquoted attributes, HTML comments, `<script>` bodies, and `<style>` bodies. Objects, functions, symbols, promises, DOM nodes, and other unsupported values also throw instead of being coerced implicitly.
+
+### Conditional and boolean attributes
+
+Use `attributes()` when a complete attribute should be conditional or when rendering standard boolean attributes:
+
+```ts
+import {attributes, html} from 'white-label-view/html';
+
+const template = (data: {complete: boolean; id: number}) => html`
+    <input ${attributes({
+        type: 'checkbox',
+        checked: data.complete,
+        'data-task-id': data.id
+    })}>
+`;
+```
+
+`attributes()` validates attribute names, rejects inline `on*` event-handler attributes and `srcdoc`, quotes values, escapes delimiters, omits `null`/`undefined`/`false`, and renders recognized boolean attributes by presence when `true`.
+
+Use browser event listeners or View's delegated event helper instead of inline HTML event-handler attributes.
+
+### Trusted markup
+
+Use `unsafeHTML()` only for markup that the application already owns, trusts, or has sanitized:
+
+```ts
+import {html, unsafeHTML} from 'white-label-view/html';
+
+const template = (trustedMarkup: string) => html`
+    <section>${unsafeHTML(trustedMarkup)}</section>
+`;
+```
+
+`unsafeHTML()` is an explicit trust boundary. Never pass uncontrolled user content to it.
+
+Tagged `HTMLMarkup` and `attributes()` results use package-instance-owned identity rather than a public marker. Application code cannot forge trusted markup by constructing a marker-shaped object, and a separate installed copy is not implicitly trusted. When markup crosses package-copy or renderer boundaries, treat the resulting string as an explicit application-owned trust boundary.
+
+HTML escaping is not URL, JavaScript, CSS, or application-policy validation. Applications remain responsible for deciding which `href`, `src`, `action`, style values, and other semantic values are allowed.
+
+## Browser rendering
+
+Browser View accepts exactly one DOM element, one trusted HTML string, or one `HTMLMarkup` result from `white-label-view/html`.
+
+```ts
+import View from 'white-label-view';
+import {Model} from 'white-label-model';
+import {html} from 'white-label-view/html';
+
+const model = new Model({name: 'Ada'});
+const view = new View({
+    parentElement: document.querySelector('main')!,
+    model,
+    template: data => html`<section><h1>Hello, ${(data as {name: string}).name}</h1></section>`
+}).initialize();
 
 model.update({name: 'Grace'});
 view.destroy();
 ```
 
-Browser View accepts one DOM element, one trusted single-root HTML string, or White Label JSX output.
+String/`HTMLMarkup` output must resolve to exactly one root element. Empty output, text-only output, comments, or multiple top-level elements are rejected.
 
-### Server
+## Adopt existing server-rendered markup
 
-```js
-import View from 'white-label-view/server';
+Pass an existing `element` when the server/CMS/commerce platform already rendered the DOM you want to enhance:
+
+```ts
 import {Model} from 'white-label-model';
+import View from 'white-label-view';
 
-const model = new Model({name: 'Ada'});
+const status = document.querySelector<HTMLElement>('[data-filter-status]')!;
+const filters = new Model({color: ''});
+
 const view = new View({
-    model,
-    template: data => `<section><h1>Hello, ${data.name}</h1></section>`
+    parentElement: status.parentElement!,
+    element: status,
+    model: filters,
+    update(element, data) {
+        const state = data as {color: string};
+        element.textContent = state.color
+            ? `Color filter: ${state.color}`
+            : 'No color filter selected';
+        return true;
+    }
+}).initialize();
+```
+
+When the root is attached, View calls `update(element, data)` before requiring a template. Returning `true` means the current DOM handled the render. If it returns `false`, View falls back to the configured template when one exists.
+
+Keep ownership explicit: View owns the adopted root and its lifecycle, not unrelated host-rendered siblings. `destroy()` removes the root it owns, so a host that intends to keep an element after enhancement teardown should structure ownership accordingly.
+
+## Server rendering
+
+```ts
+import View from 'white-label-view/server';
+import {html} from 'white-label-view/html';
+
+const view = new View({
+    model: {name: 'Ada'},
+    template: data => html`<section><h1>Hello, ${(data as {name: string}).name}</h1></section>`
 }).initialize();
 
-// toString() returns the most recently rendered HTML string.
-const html = view.toString();
+const markup = view.toString();
 view.destroy();
 ```
 
-Server View accepts a trusted HTML string or White Label JSX output. It intentionally does not emulate DOM nodes, delegated events, focus, mounting, or animation frames.
+Server View accepts trusted HTML strings or White Label `HTMLMarkup`. It intentionally does not emulate DOM nodes, delegated events, focus, mounting, or animation frames.
 
 For request-specific state, create request-specific Model/View instances rather than sharing mutable instances across concurrent requests.
 
 ## Serverless and function runtimes
 
-Use `white-label-view/server` when a serverless function should produce HTML. It has no `window` or `document` requirement and returns rendered markup through `toString()`, so it fits functions that receive a request, build request-scoped state, render a response, and then release that lifecycle.
+Use `white-label-view/server` when a serverless function should produce HTML. It has no `window` or `document` requirement and returns rendered markup through `toString()`.
 
-Create mutable View instances per request when they own request-specific models, subscriptions, child views, or output. Warm function processes may serve many sequential or overlapping requests, so sharing one mutable View across invocations can mix output or lifecycle state unless that shared lifetime is deliberate.
+Create mutable View instances per request when they own request-specific models, subscriptions, child views, or output. Warm function processes may serve sequential or overlapping requests, so sharing one mutable View can mix output or lifecycle state unless that lifetime is deliberate.
 
-Browser View remains a separate progressive-enhancement concern. A function runtime should use the server entrypoint rather than emulating DOM mounting, delegated events, focus, or animation frames.
+The package currently documents Node.js as its supported server runtime. DOM-free rendering is portable by design, but that is not a blanket compatibility claim for every edge provider.
 
-Direct HTML strings remain trusted caller input in serverless rendering just as they are elsewhere. Escape or sanitize untrusted values for their output context, or use the optional White Label JSX runtime where its default escaping fits the application.
+## Third-party template engines
 
-The package currently documents Node.js as its supported server runtime. DOM-free server rendering is portable by design, but that is not a blanket compatibility claim for every edge provider; verify the actual target runtime before deployment.
+`View` is template-engine agnostic. Any renderer that synchronously returns compatible HTML can be called from `template`; White Label does not require an adapter.
 
-## JSX is optional
+White Label currently tests these representative integrations through both Browser View and Server View:
 
-White Label View includes a framework-independent automatic JSX runtime at `white-label-view/jsx-runtime`. Use it when JSX/TSX fits the project; skip it when plain TypeScript or another template engine should own rendering. View itself does not require JSX.
+- Handlebars `4.7.9`
+- Eta `4.6.0`
+- EJS `6.0.1`
+- Mustache `4.2.0`
+- Nunjucks `3.2.4`
+- Pug `3.0.4`
+- KitaJS HTML `4.2.13` for synchronous JSX-to-HTML rendering
 
-Configure TypeScript when choosing JSX:
+KitaJS is a third-party JSX runtime, not a White Label dependency or first-party runtime. Its current security model requires callers to use Kita's `safe` attribute or explicit escaping for uncontrolled dynamic child strings. White Label compatibility does not replace Kita's own security guidance.
 
-```json
-{
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "white-label-view"
-  }
-}
-```
-
-Then write normal TSX:
-
-```tsx
-const view = new View({
-    parentElement: document.querySelector('main')!,
-    model,
-    template: data => (
-        <section className="profile">
-            <h1>Hello, {data.name}</h1>
-        </section>
-    )
-}).initialize();
-```
-
-JSX child text and ordinary attribute values are HTML-escaped by default. Fragments, child arrays, function components, boolean attributes, `className`, `htmlFor`, and style objects are supported. Invalid intrinsic tag or attribute names and intrinsic `on*` event-handler attributes throw `TypeError`; use browser listeners instead. JSX and `raw()` values are recognized by runtime-owned identity rather than by forgeable marker-shaped objects.
-
-Escaping prevents ordinary text/attribute markup injection, but it is not a general-purpose sanitizer or policy engine. Applications must still validate URL-bearing values such as `href`/`src`, CSS/style values, and any other context whose safety depends on semantic meaning rather than HTML delimiters.
-
-For independently trusted or sanitized markup, `raw()` is an explicit escape hatch:
-
-```tsx
-import {raw} from 'white-label-view/jsx-runtime';
-
-const template = () => <section>{raw('<strong>Trusted markup</strong>')}</section>;
-```
-
-Never pass untrusted user content to `raw()`. Direct HTML-string templates are also trusted caller input and must already be escaped or sanitized for their context.
-
-If you do not want JSX, return DOM nodes or trusted HTML strings directly, or call a third-party renderer from `template`. See [Template engines and JSX options](https://whitelabeljs.org/docs/view/#template-engines) for the no-JSX generator path, tested engines, and rendering/security contracts.
-
-## Template-engine agnostic
-
-The first-party JSX runtime is optional. `View` only requires `template` to return a compatible result, so applications can keep the renderer they already use. White Label currently tests Handlebars `4.7.9`, Eta `4.6.0`, EJS `6.0.1`, Mustache `4.2.0`, Nunjucks `3.2.4`, and Pug `3.0.4` in both browser and server View. Other compatible renderers can use the same contract but remain application-owned integrations rather than package dependencies or White Label-tested combinations.
-
-If you use `generator-white-label`, choose the no-JSX option (`--no-jsx`) to generate plain TypeScript templates that return HTML strings. Install and configure your preferred engine in the generated application, then call it from the View `template` function. That keeps the same White Label architecture, lifecycle behavior, and progressive-enhancement capabilities while avoiding a second template syntax or JSX compiler/runtime integration.
-
-See [Template engines and JSX options](https://whitelabeljs.org/docs/view/#template-engines) for tested compatibility, no-JSX setup, rendering contracts, and escaping/security boundaries. The repository-level compatibility notes are also in [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md).
+See [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md) and the [public template-engine guide](https://whitelabeljs.org/docs/view/#template-engines) for the tested matrix, setup examples, and trust boundaries.
 
 ## Browser lifecycle
 
-`initialize()` performs a synchronous `render()`. When a model exposes `get()`, View passes `model.get()` to the template; otherwise it passes the model itself.
+`initialize()` performs a synchronous `render()`. When a model exposes `get()`, View passes `model.get()` to the template/update hook; otherwise it passes the model itself.
 
-A successful mount or replacement installs the root, initializes model binding when possible, calls `addListeners()`, and then calls `afterMount()`. Equal HTML/JSX output skips reparsing while attached, and equal DOM trees preserve the existing root.
+For an attached root, `update(element, data)` gets the first opportunity to handle a render. A successful mount, adoption, or replacement initializes model binding, calls `addListeners()`, then calls `afterMount()`. Equal HTML output skips reparsing while attached, and equal DOM trees preserve the existing root.
 
-Browser templates must resolve to exactly one element. Empty strings, text nodes, comments, multiple roots, top-level multi-element fragments, `null`, and other non-element results throw `TypeError` without replacing the last successful root.
+When template rendering is used, browser output must resolve to exactly one element. Invalid output throws `TypeError` without replacing the last successful root.
 
-## Simple click event
+## Events and delegated events
 
-Use `addListeners()` and `removeListeners()` when a View owns a browser event:
+Use `addListeners()` and `removeListeners()` when a View owns browser events. The same callback reference should be used for registration and cleanup.
 
-```js
+```ts
 class ButtonView extends View {
-    handleClick = () => {
-        console.log('Clicked');
-    };
+    handleClick = () => console.log('Clicked');
 
     addListeners() {
         this.element.addEventListener('click', this.handleClick);
@@ -191,100 +252,23 @@ class ButtonView extends View {
 }
 ```
 
-The same callback reference is used for registration and cleanup. View calls `addListeners()` after the root is installed and `removeListeners()` before replacement or destruction.
-
-## Browser public API
-
-| Method | Behavior | Returns |
-| --- | --- | --- |
-| `initialize()` | Render current state and initialize lifecycle. | The same `View` instance. |
-| `render()` | Synchronously mount, replace, or update the root. | The same `View` instance; throws `TypeError` if a template does not resolve to exactly one element. |
-| `requestRender()` | Render now or coalesce into an animation frame when batching is enabled. | The same `View` instance, whether rendered immediately or queued. |
-| `setModel(model?)` | Move model binding and render current state. | The same `View` instance after rendering. |
-| `delegate(scope?)` | Create a native delegated-event registry. | A new delegated-event registry scoped to the supplied element or current root. |
-| `addChild(child)` | Register child ownership. | The parent `View`; throws `TypeError` for cycles or a child already owned elsewhere. |
-| `releaseChild(child)` | Release ownership without destroying the child. | The parent `View`. |
-| `initializeModelBinding()` | Subscribe to model `change` events. | `undefined`; updates binding state in place. |
-| `destroyModelBinding()` | Release model subscription and queued work. | `undefined`; updates binding state in place. |
-| `addListeners()` | Extension hook after root installation. | The same `View` instance by default. |
-| `removeListeners()` | Extension hook before replacement or destruction. | The same `View` instance by default. |
-| `afterMount()` | Extension hook after insertion and listener setup. | The same `View` instance by default. |
-| `destroy()` | Release listeners, model binding, children, queued work, and DOM root. | The same `View` instance after cleanup. |
-
-Delegated-event registry methods `on()`, `off()`, and `clear()` each return that registry for chaining. These methods belong to the delegated DOM-event helper.
-
-## Server public API
-
-| Method | Behavior | Returns |
-| --- | --- | --- |
-| `initialize()` | Render current state and initialize lifecycle. | The same server `View` instance. |
-| `render()` | Render the template into stored HTML. | The same server `View`; throws `TypeError` for output that is neither a string nor White Label JSX markup. |
-| `toString()` | Return the most recently rendered HTML. | The rendered HTML string, or `''` before/after output is cleared. |
-| `setModel(model?)` | Move model binding and synchronously render new state. | The same server `View` instance after rendering. |
-| `addChild(child)` | Register child ownership. | The parent server `View`; throws `TypeError` for cycles or a child already owned elsewhere. |
-| `releaseChild(child)` | Release ownership without destroying the child. | The same server `View` instance. |
-| `initializeModelBinding()` | Subscribe to model `change` events. | The same server `View` instance. |
-| `destroyModelBinding()` | Release model subscription. | The same server `View` instance. |
-| `destroy()` | Destroy children, release subscriptions, and clear output. | The same server `View` instance after cleanup. |
-
-## Delegated browser events
-
-Use the delegated helper when one View root owns events for matching descendants:
-
-```js
-class MenuView extends View {
-    constructor(settings) {
-        super(settings);
-        this.handleLinkClick = this.handleLinkClick.bind(this);
-    }
-
-    addListeners() {
-        this.delegated.on('click', 'a', this.handleLinkClick);
-        return this;
-    }
-
-    removeListeners() {
-        this.delegated.off('click', 'a', this.handleLinkClick);
-        return this;
-    }
-
-    handleLinkClick(event) {
-        event.preventDefault();
-    }
-}
-```
-
-Delegation uses native `addEventListener()` and `closest()`. Registries created with `delegate(scope)` are caller-owned; the View-owned `delegated` registry is cleared when the root is replaced or destroyed.
+For descendant events, `this.delegated` provides a native `addEventListener()`/`closest()` based registry. `delegate(scope)` creates a caller-owned registry. View-owned delegated registrations are cleared on root replacement or destruction.
 
 ## In-place updates and focus preservation
 
-Use `update()` when replacing a root would unnecessarily destroy browser state:
-
-```js
-const view = new View({
-    parentElement: document.querySelector('main'),
-    model,
-    template: () => '<section><input><span></span></section>',
-    update: (element, data) => {
-        element.querySelector('span').textContent = data.status;
-        return true;
-    }
-}).initialize();
-```
-
-Return `true` when the update was handled. Return `false` to fall back to normal rendering.
+Use `update()` when replacing a root would unnecessarily destroy browser state such as focus, selection, or host-owned markup. Return `true` when the update was handled. Return `false` to fall back to normal template rendering. A template is optional when the View adopts an attached root and the update hook handles the render.
 
 ## Model binding and batching
 
 Model binding is one-way: model changes trigger rendering; form input is not automatically written back to state.
 
-Observable models use the native `EventTarget` contract and provide both `addEventListener()` and `removeEventListener()` so View can subscribe to and release the `change` event. `setModel(nextModel)` moves the binding and renders immediately.
+Observable models use the native EventTarget contract and provide both `addEventListener()` and `removeEventListener()` so View can subscribe to and release `change`. `setModel(nextModel)` moves the binding and renders immediately.
 
 Set `batchUpdates: true` in Browser View to coalesce model-driven renders into one `requestAnimationFrame`. Manual `render()` remains synchronous. Server View always renders model changes synchronously.
 
 ## Child ownership
 
-`addChild()` opts a child into parent ownership; it does not mount the child automatically. Parent root replacement and destruction destroy owned browser children. In-place updates and equal-root renders preserve them. Server View destroys owned children during teardown.
+`addChild()` opts a child into parent cleanup ownership; it does not mount the child automatically. Parent root replacement and destruction destroy owned browser children. In-place updates and equal-root renders preserve them. Server View destroys owned children during teardown.
 
 `releaseChild()` transfers cleanup responsibility without destroying the child. Ownership cycles and simultaneous ownership by two parents throw `TypeError`.
 
@@ -292,23 +276,59 @@ Set `batchUpdates: true` in Browser View to coalesce model-driven renders into o
 
 View manages rendering mechanics, not markup quality. Applications remain responsible for semantic HTML, accessible names, keyboard operation, focus visibility, contrast, live regions, and other applicable accessibility requirements.
 
-For public content, prefer meaningful server-rendered or static initial HTML and use Browser View for progressive enhancement. The package does not provide automatic hydration or claim to reconcile server DOM with browser state.
+For public content, prefer meaningful server-rendered or static initial HTML and use Browser View for progressive enhancement. The package does not provide automatic hydration or claim to reconcile arbitrary server DOM with browser state.
+
+## Browser public API
+
+| Method | Behavior | Returns |
+| --- | --- | --- |
+| `initialize()` | Render/adopt current state and initialize lifecycle. | The same `View` instance. |
+| `render()` | Synchronously update, mount, replace, or adopt the root. | The same View; template output errors throw `TypeError`. |
+| `requestRender()` | Render now or coalesce into an animation frame when batching is enabled. | The same `View` instance. |
+| `setModel(model?)` | Move model binding and render current state. | The same `View` instance. |
+| `delegate(scope?)` | Create a native delegated-event registry. | A new delegated-event registry. |
+| `addChild(child)` | Register child cleanup ownership. | The parent View; throws for cycles/conflicting ownership. |
+| `releaseChild(child)` | Release ownership without destroying the child. | The parent View. |
+| `initializeModelBinding()` | Subscribe to model `change` events. | `undefined`. |
+| `destroyModelBinding()` | Release model subscription and queued work. | `undefined`. |
+| `addListeners()` | Extension hook after root installation/adoption. | The same View by default. |
+| `removeListeners()` | Extension hook before replacement/destruction. | The same View by default. |
+| `afterMount()` | Extension hook after insertion/adoption and listener setup. | The same View by default. |
+| `destroy()` | Release listeners, binding, children, queued work, and DOM root. | The same View after cleanup. |
+
+Delegated-event registry methods `on()`, `off()`, and `clear()` return the registry for chaining.
+
+## Server public API
+
+| Method | Behavior | Returns |
+| --- | --- | --- |
+| `initialize()` | Render current state and initialize lifecycle. | The same server View. |
+| `render()` | Render the template into stored HTML. | The same server View; throws for unsupported output. |
+| `toString()` | Return the most recently rendered HTML. | The HTML string, or `''` when no output is stored. |
+| `setModel(model?)` | Move model binding and render new state. | The same server View. |
+| `addChild(child)` | Register child cleanup ownership. | The parent server View. |
+| `releaseChild(child)` | Release ownership without destroying the child. | The same server View. |
+| `initializeModelBinding()` | Subscribe to model `change`. | The same server View. |
+| `destroyModelBinding()` | Release model subscription. | The same server View. |
+| `destroy()` | Destroy children, release subscriptions, and clear output. | The same server View. |
+
+## HTML template API
+
+`white-label-view/html` exports:
+
+| Export | Purpose |
+| --- | --- |
+| `html` | Build escaped, composable `HTMLMarkup` from a tagged template literal. |
+| `attributes` | Render validated conditional/boolean attributes at an opening-tag attribute boundary. |
+| `unsafeHTML` | Insert caller-owned trusted/sanitized markup without escaping. |
+| `isHTMLMarkup` | Identify tagged-template output created by this installed package instance; marker-shaped objects and separate copies are not implicitly trusted. |
+| `HTMLMarkup` | TypeScript interface for the first-party markup result. |
 
 ## TypeScript
 
-Both entrypoints use strict TypeScript and emit JavaScript, source maps, and declarations into `dist`.
+All entrypoints use strict TypeScript and emit JavaScript, source maps, and declarations into `dist`.
 
-```ts
-const settings: View.Settings = {
-    parentElement: document.body,
-    template: () => '<p>Hello</p>',
-    batchUpdates: true
-};
-
-const view = new View(settings).initialize();
-```
-
-`View.Settings`, `View.Model`, browser listener/settings types, and JSX runtime types expose the supported contracts. Template data is `unknown`; application code should narrow it before reading domain fields.
+`View.Settings`, `View.Model`, browser listener/settings types, and `HTMLMarkup` expose the supported contracts. Template data is `unknown`; application code should narrow it before reading domain fields.
 
 ## Development
 
@@ -323,7 +343,7 @@ npm run audit
 npm pack --dry-run
 ```
 
-Coverage enforces 100% statements, branches, functions, and lines per implementation file. CI verifies both the documented Node 22.18 minimum and the primary Node 24 line, builds authored source, uploads generated artifacts for inspection, verifies public package subpaths from the packed artifact, tests packed-package compatibility across npm, Yarn, and pnpm, and runs the isolated template-engine compatibility matrix.
+Coverage enforces 100% statements, branches, functions, and lines per implementation file. CI verifies the documented Node minimum and primary Node line, builds authored source, verifies public package subpaths from the packed artifact, tests npm/Yarn/pnpm compatibility, and runs the isolated template-engine matrix.
 
 Edit `src/*.ts` and regenerate `dist`; do not edit generated files directly.
 

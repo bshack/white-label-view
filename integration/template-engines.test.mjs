@@ -9,6 +9,7 @@ import nunjucks from 'nunjucks';
 import pug from 'pug';
 import View from 'white-label-view';
 import ServerView from 'white-label-view/server';
+import {renderKita} from './kita-template.js';
 
 const eta = new Eta();
 const nunjucksEnvironment = new nunjucks.Environment(null, {autoescape: true});
@@ -20,7 +21,8 @@ const renderers = [
     ['EJS', data => ejs.render('<section><h1>Hello <%= name %></h1></section>', data)],
     ['Mustache', data => Mustache.render('<section><h1>Hello {{name}}</h1></section>', data)],
     ['Nunjucks', data => nunjucksEnvironment.renderString('<section><h1>Hello {{ name }}</h1></section>', data)],
-    ['Pug', data => pug.render('section\n  h1 Hello #{name}', data)]
+    ['Pug', data => pug.render('section\n  h1 Hello #{name}', data)],
+    ['KitaJS HTML', renderKita]
 ];
 
 for (const [name, render] of renderers) {

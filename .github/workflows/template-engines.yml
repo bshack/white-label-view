@@ -24,15 +24,18 @@ jobs:
       - run: npm run build
       - name: Create packed package
         run: npm pack --silent
-      - name: Verify Handlebars, Eta, EJS, Mustache, Nunjucks, and Pug
+      - name: Verify tagged templates and third-party engines
         run: |
           PACKAGE="$(realpath *.tgz)"
           TEMP="$(mktemp -d)"
           cp integration/template-engines.test.mjs "$TEMP/template-engines.test.mjs"
+          cp integration/kita-template.tsx "$TEMP/kita-template.tsx"
           cd "$TEMP"
           printf '{"private":true,"type":"module"}\n' > package.json
           npm install --ignore-scripts --no-save \
             "$PACKAGE" \
+            @kitajs/html@4.2.13 \
+            typescript@7.0.2 \
             handlebars@4.7.9 \
             eta@4.6.0 \
             ejs@6.0.1 \
@@ -40,4 +43,11 @@ jobs:
             nunjucks@3.2.4 \
             pug@3.0.4 \
             jsdom@30.0.1 >/dev/null
+          npx tsc kita-template.tsx \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --jsx react-jsx \
+            --jsxImportSource @kitajs/html \
+            --skipLibCheck
           node --test template-engines.test.mjs

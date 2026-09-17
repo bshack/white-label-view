@@ -1,5 +1,5 @@
-import {isJSXMarkup} from './jsx-runtime.js';
-import type {JSXMarkup} from './jsx-runtime.js';
+import {isHTMLMarkup} from './html.js';
+import type {HTMLMarkup} from './html.js';
 
 /** Data source consumed by the rendering lifecycle. Observable models use the native EventTarget contract. */
 interface ViewModel {
@@ -12,7 +12,7 @@ interface ViewSettings {
     parentElement?: Element;
     element?: Element;
     model?: object & ViewModel;
-    template?: (data: unknown) => string | Node | JSXMarkup;
+    template?: (data: unknown) => string | Node | HTMLMarkup;
     update?: (element: Node, data: unknown) => boolean;
     /** Coalesce model changes into one animation frame; manual render() stays synchronous. */
     batchUpdates?: boolean;
@@ -94,7 +94,7 @@ class DelegatedEvents {
 class View {
     parentElement?: Element;
     element: Node;
-    declare template?: (data: unknown) => string | Node | JSXMarkup;
+    declare template?: (data: unknown) => string | Node | HTMLMarkup;
     /** Override to update the attached root in place; false uses the template fallback. */
     update(_element: Node, _data: unknown): boolean { return false; }
     batchUpdates: boolean;
@@ -261,14 +261,14 @@ class View {
     render() {
         this.cancelRender();
         const attached = this.parentElement?.contains(this.element);
-        if (typeof this.template !== 'function') {return attached ? this.activateRoot() : this;}
         const data = this.model && typeof this.model.get === 'function' ? this.model.get() : this.model || {};
         if (attached && this.update(this.element, data)) {
             this.renderedTemplate = undefined;
             return this.activateRoot();
         }
+        if (typeof this.template !== 'function') {return attached ? this.activateRoot() : this;}
         let newElement = this.template(data);
-        const html = isJSXMarkup(newElement) ? newElement.value : typeof newElement === 'string' ? newElement : undefined;
+        const html = isHTMLMarkup(newElement) ? newElement.value : typeof newElement === 'string' ? newElement : undefined;
         if (html !== undefined) {
             if (html === this.renderedTemplate && attached) {return this.activateRoot();}
             // Parse in the view's own document so iframe/multi-document views do not depend on globals.

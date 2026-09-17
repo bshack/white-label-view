@@ -19,12 +19,12 @@ npm pack --dry-run
 
 ## Pull requests
 
-Keep changes focused and preserve View's documented responsibilities: DOM lifecycle, model-driven rendering, delegated events, batching, child ownership, cleanup, and the optional first-party JSX runtime. Do not introduce a framework dependency or a second lifecycle model without an explicit architectural decision.
+Keep changes focused and preserve View's documented responsibilities: DOM lifecycle, model-driven rendering, delegated events, batching, child ownership, cleanup, adopted-DOM updates, and first-party tagged HTML templates. Do not introduce a framework dependency, JSX runtime, template adapter layer, or second lifecycle model without an explicit architectural decision.
 
-Add or update tests when behavior changes. Do not weaken coverage, lint, type, or security checks to make a change pass. Review the complete diff for generated-file drift, credentials, private data, debugging code, and unrelated formatting changes.
+Add or update tests when behavior changes. Template changes should cover escaping, trusted-markup boundaries, browser/server parity, and invalid output where applicable. Do not weaken coverage, lint, type, or security checks to make a change pass. Review the complete diff for generated-file drift, credentials, private data, debugging code, and unrelated formatting changes.
 
 Breaking public API changes require a SemVer major release rather than compatibility shims.
 
 ## Accessibility and security
 
-View manages lifecycle, not application markup quality. UI changes should preserve keyboard and focus behavior where applicable. Never pass untrusted content to the JSX `raw()` escape hatch. Follow `SECURITY.md` for suspected vulnerabilities.
+View manages lifecycle, not application markup quality. UI changes should preserve keyboard and focus behavior where applicable. Never pass uncontrolled content to `unsafeHTML()`. Keep interpolation-context checks and `attributes()` validation strict rather than accepting ambiguous markup. Follow `SECURITY.md` for suspected vulnerabilities.
