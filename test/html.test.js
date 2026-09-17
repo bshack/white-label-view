@@ -20,6 +20,10 @@ test('html escapes text and quoted attribute interpolations', () => {
     assert.equal(isHTMLMarkup(output), true);
 });
 
+test('html escapes interpolation after a text-only literal prefix', () => {
+    assert.equal(text(html`Hello ${'<Ada>'}`), 'Hello &lt;Ada&gt;');
+});
+
 test('html preserves caller-authored literal whitespace', () => {
     const output = html`  <span>spaced</span>  `;
     assert.equal(text(output), '  <span>spaced</span>  ');
