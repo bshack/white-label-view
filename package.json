@@ -55,7 +55,7 @@
   },
   "homepage": "https://whitelabeljs.org/docs/view/",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "test": "node --run build && node --run test:types && node --run test:unit",
     "audit": "npm audit --audit-level=high",
     "benchmark": "node --run build && node benchmark/view.bench.js",
