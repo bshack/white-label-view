@@ -1,0 +1,28 @@
+name: Port lifecycle fixes
+
+on:
+  push:
+    branches: [fix/lifecycle-failure-safety-v7]
+
+permissions:
+  contents: write
+
+jobs:
+  port:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Port lifecycle-only commits
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git cherry-pick 569e44abc29d624ac2f9c3d6fdff93ea2b6bc1d0
+          git cherry-pick 9ba8ab90cae5a7bfa8ef7abbdcb6769e487e880c
+          git cherry-pick 20e5f9cf39890fdbe141764e5928aa6c5f730cef
+          git cherry-pick 0e5ac26288cf83c0ef486cfb0751a940bd7f83e4
+          git cherry-pick 5ae0ad1bba2cc194ede2353e711a0767a15b91bf
+          git cherry-pick 5b5e8516537037d661aab30cacc8d91efe333630
+          git push
