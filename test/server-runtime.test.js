@@ -20,16 +20,13 @@ function observable(value) {
     return model;
 }
 
-test('server view renders JSX with escaping and no DOM globals', t => {
+test('server view renders tagged HTML with escaping and no DOM globals', t => {
     withoutBrowserGlobals(t);
     const View = require('../dist/server');
-    const {jsx, raw} = require('../dist/jsx-runtime');
+    const {html, unsafeHTML} = require('../dist/html');
     const view = new View({
         model: {name: '<Ada & Grace>'},
-        template: data => jsx('main', {
-            className: 'profile',
-            children: [jsx('h1', {children: data.name}), raw('<p>trusted</p>')]
-        })
+        template: data => html`<main class="profile"><h1>${data.name}</h1>${unsafeHTML('<p>trusted</p>')}</main>`
     });
 
     assert.equal(view.initialize(), view);
@@ -117,5 +114,5 @@ test('server view rejects DOM-like or unsupported template results', t => {
     withoutBrowserGlobals(t);
     const View = require('../dist/server');
     const view = new View({template: () => ({nodeType: 1})});
-    assert.throws(() => view.render(), /string or White Label JSX markup/);
+    assert.throws(() => view.render(), /string or White Label HTML markup/);
 });
