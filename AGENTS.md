@@ -197,7 +197,7 @@ Record relevant pre-existing test, build, lint, formatting, or type-check failur
 
 # 6. Reuse Existing Code Before Creating New Code
 
-**Always look for reusable functionality before creating anything new.**
+**Always look for reusable functionality before creating new code.**
 
 Search for:
 
