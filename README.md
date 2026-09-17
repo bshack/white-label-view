@@ -124,6 +124,8 @@ const template = (trustedMarkup: string) => html`
 
 `unsafeHTML()` is an explicit trust boundary. Never pass uncontrolled user content to it.
 
+Tagged `HTMLMarkup` and `attributes()` results use package-instance-owned identity rather than a public marker. Application code cannot forge trusted markup by constructing a marker-shaped object, and a separate installed copy is not implicitly trusted. When markup crosses package-copy or renderer boundaries, treat the resulting string as an explicit application-owned trust boundary.
+
 HTML escaping is not URL, JavaScript, CSS, or application-policy validation. Applications remain responsible for deciding which `href`, `src`, `action`, style values, and other semantic values are allowed.
 
 ## Browser rendering
@@ -319,8 +321,8 @@ Delegated-event registry methods `on()`, `off()`, and `clear()` return the regis
 | `html` | Build escaped, composable `HTMLMarkup` from a tagged template literal. |
 | `attributes` | Render validated conditional/boolean attributes at an opening-tag attribute boundary. |
 | `unsafeHTML` | Insert caller-owned trusted/sanitized markup without escaping. |
-| `isHTMLMarkup` | Identify White Label tagged-template output, including output from another installed package copy. |
-| `HTMLMarkup` | TypeScript interface for the branded first-party markup result. |
+| `isHTMLMarkup` | Identify tagged-template output created by this installed package instance; marker-shaped objects and separate copies are not implicitly trusted. |
+| `HTMLMarkup` | TypeScript interface for the first-party markup result. |
 
 ## TypeScript
 
