@@ -310,14 +310,19 @@ function compileTemplate(strings: readonly string[]): readonly InterpolationPlan
         context: 'text', tagName: '', closingTag: false, readingTagName: false, quotedAttributeName: ''
     };
     const plans: InterpolationPlan[] = [];
+    let attributeBoundary = false;
     for (let index = 0; index < strings.length - 1; index += 1) {
         const literal = strings[index]!;
         advance(state, literal);
         const trimAttributeSpace = trailingHTMLWhitespace.test(literal);
+        if (state.context !== 'tag') {
+            attributeBoundary = false;
+        } else if (literal.length > 0) {
+            attributeBoundary = trimAttributeSpace || /<[A-Za-z][A-Za-z0-9:._-]*$/.test(literal);
+        }
         plans.push({
             context: state.context,
-            attributeBoundary: state.context === 'tag' &&
-                (trimAttributeSpace || /<[A-Za-z][A-Za-z0-9:._-]*$/.test(literal)),
+            attributeBoundary,
             trimAttributeSpace,
             quotedAttributeName: state.quotedAttributeName
         });
