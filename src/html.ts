@@ -23,12 +23,19 @@ interface ParseState {
     tagName: string;
     closingTag: boolean;
     readingTagName: boolean;
+    quotedAttributeName: string;
 }
 
 interface InterpolationPlan {
     context: Context;
     attributeBoundary: boolean;
     trimAttributeSpace: boolean;
+    quotedAttributeName: string;
+}
+
+interface CompiledTemplate {
+    literals: readonly string[];
+    plans: readonly InterpolationPlan[];
 }
 
 interface AttributeMarkup {readonly value: string}
@@ -39,7 +46,7 @@ export interface HTMLMarkup {
     [Symbol.toPrimitive](): string;
 }
 
-const templatePlans = new WeakMap<TemplateStringsArray, readonly InterpolationPlan[]>();
+const templatePlans = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 
 function markup(value: string): HTMLMarkup {
     const result = {
@@ -74,14 +81,33 @@ function scalar(value: unknown, attribute = false): string {
 }
 
 function renderText(value: unknown): string {
-    if (Array.isArray(value)) {
-        let rendered = '';
-        for (const entry of value) {rendered += renderText(entry);}
-        return rendered;
+    const activeArrays = new WeakSet<object>();
+    const stack: Array<{value: unknown} | {array: unknown[]}> = [{value}];
+    let rendered = '';
+    while (stack.length) {
+        const entry = stack.pop()!;
+        if ('array' in entry) {
+            activeArrays.delete(entry.array);
+            continue;
+        }
+        const current = entry.value;
+        if (Array.isArray(current)) {
+            if (activeArrays.has(current)) {throw new TypeError('HTML template arrays may not contain cycles');}
+            activeArrays.add(current);
+            stack.push({array: current});
+            for (let index = current.length - 1; index >= 0; index -= 1) {
+                stack.push({value: current[index]});
+            }
+            continue;
+        }
+        if (isHTMLMarkup(current)) {
+            rendered += current.value;
+            continue;
+        }
+        if (isAttributeMarkup(current)) {throw new TypeError('attributes() may only be interpolated inside an opening tag');}
+        rendered += scalar(current);
     }
-    if (isHTMLMarkup(value)) {return value.value;}
-    if (isAttributeMarkup(value)) {throw new TypeError('attributes() may only be interpolated inside an opening tag');}
-    return scalar(value);
+    return rendered;
 }
 
 function renderQuotedAttribute(value: unknown): string {
@@ -147,6 +173,7 @@ function startTag(state: ParseState) {
     state.tagName = '';
     state.closingTag = false;
     state.readingTagName = true;
+    state.quotedAttributeName = '';
 }
 
 function finishTag(state: ParseState) {
@@ -157,6 +184,37 @@ function finishTag(state: ParseState) {
     state.tagName = '';
     state.closingTag = false;
     state.readingTagName = false;
+    state.quotedAttributeName = '';
+}
+
+function isRawTextEndDelimiter(character: string | undefined): boolean {
+    return character === '>' || character === '/' || character === ' ' || character === '\t' ||
+        character === '\n' || character === '\f' || character === '\r';
+}
+
+function findRawTextEnd(state: ParseState, source: string, lower: string, index: number): number {
+    const close = `</${state.context}`;
+    let searchIndex = index;
+    while (searchIndex < source.length) {
+        const candidate = lower.indexOf(close, searchIndex);
+        if (candidate === -1) {return -1;}
+        if (isRawTextEndDelimiter(source[candidate + close.length])) {
+            // Legacy script-escaped/double-escaped states are deliberately treated as ambiguous.
+            // Remaining in script context is conservative and prevents a false transition to HTML text.
+            if (state.context === 'script') {
+                const escapeStart = lower.indexOf('<!--', index);
+                if (escapeStart !== -1 && escapeStart < candidate) {return -1;}
+            }
+            return candidate;
+        }
+        searchIndex = candidate + close.length;
+    }
+    return -1;
+}
+
+function attributeNameBeforeQuote(source: string, quoteIndex: number): string {
+    const match = /([A-Za-z_:][A-Za-z0-9:._-]*)\s*=\s*$/.exec(source.slice(0, quoteIndex));
+    return match?.[1]?.toLowerCase() ?? '';
 }
 
 function advance(state: ParseState, source: string) {
@@ -192,8 +250,7 @@ function advance(state: ParseState, source: string) {
         }
 
         if (state.context === 'script' || state.context === 'style') {
-            const close = `</${state.context}`;
-            const end = lower.indexOf(close, index);
+            const end = findRawTextEnd(state, source, lower, index);
             if (end === -1) {return;}
             state.context = 'text';
             index = end;
@@ -205,6 +262,7 @@ function advance(state: ParseState, source: string) {
             const end = source.indexOf(quote, index);
             if (end === -1) {return;}
             state.context = 'tag';
+            state.quotedAttributeName = '';
             index = end + 1;
             continue;
         }
@@ -221,15 +279,20 @@ function advance(state: ParseState, source: string) {
             index += 1;
             continue;
         }
-        if (character === '"') {state.context = 'double';}
-        else if (character === "'") {state.context = 'single';}
-        else if (character === '>') {finishTag(state);}
+        if (character === '"' || character === "'") {
+            state.quotedAttributeName = attributeNameBeforeQuote(source, index);
+            state.context = character === '"' ? 'double' : 'single';
+        } else if (character === '>') {
+            finishTag(state);
+        }
         index += 1;
     }
 }
 
-function compileTemplate(strings: TemplateStringsArray): readonly InterpolationPlan[] {
-    const state: ParseState = {context: 'text', tagName: '', closingTag: false, readingTagName: false};
+function compileTemplate(strings: readonly string[]): readonly InterpolationPlan[] {
+    const state: ParseState = {
+        context: 'text', tagName: '', closingTag: false, readingTagName: false, quotedAttributeName: ''
+    };
     const plans: InterpolationPlan[] = [];
     for (let index = 0; index < strings.length - 1; index += 1) {
         const literal = strings[index]!;
@@ -239,15 +302,32 @@ function compileTemplate(strings: TemplateStringsArray): readonly InterpolationP
             context: state.context,
             attributeBoundary: state.context === 'tag' &&
                 (trimAttributeSpace || /<[A-Za-z][A-Za-z0-9:._-]*$/.test(literal)),
-            trimAttributeSpace
+            trimAttributeSpace,
+            quotedAttributeName: state.quotedAttributeName
         });
     }
     return plans;
 }
 
+function sameLiterals(left: readonly string[], right: readonly string[]): boolean {
+    return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function assertQuotedAttributeInterpolationAllowed(name: string) {
+    if (name.startsWith('on')) {
+        throw new TypeError(`HTML interpolation is not supported inside event-handler attribute ${name}`);
+    }
+    if (name === 'srcdoc') {
+        throw new TypeError('HTML interpolation inside srcdoc requires an application-owned explicit HTML policy');
+    }
+}
+
 function renderInterpolation(value: unknown, plan: InterpolationPlan): string {
     if (plan.context === 'text') {return renderText(value);}
-    if (plan.context === 'double' || plan.context === 'single') {return renderQuotedAttribute(value);}
+    if (plan.context === 'double' || plan.context === 'single') {
+        assertQuotedAttributeInterpolationAllowed(plan.quotedAttributeName);
+        return renderQuotedAttribute(value);
+    }
     if (plan.context === 'tag') {
         if (value === null || value === undefined || value === false) {return '';}
         if (isAttributeMarkup(value) && plan.attributeBoundary) {
@@ -260,15 +340,20 @@ function renderInterpolation(value: unknown, plan: InterpolationPlan): string {
 
 /** Render an HTML template with escaped interpolations and explicit trusted-markup boundaries. */
 export function html(strings: TemplateStringsArray, ...values: unknown[]): HTMLMarkup {
-    let plans = templatePlans.get(strings);
-    if (!plans) {
-        plans = compileTemplate(strings);
-        templatePlans.set(strings, plans);
+    if (typeof strings !== 'object' || strings === null) {throw new TypeError('html must be used with template strings');}
+    const literals = Array.from(strings, value => {
+        if (typeof value !== 'string') {throw new TypeError('html template literals must be strings');}
+        return value;
+    });
+    let compiled = templatePlans.get(strings);
+    if (!compiled || !sameLiterals(compiled.literals, literals)) {
+        compiled = {literals, plans: compileTemplate(literals)};
+        templatePlans.set(strings, compiled);
     }
-    let rendered = strings[0]!;
-    for (let index = 0; index < strings.length - 1; index += 1) {
-        rendered += renderInterpolation(values[index], plans[index]!);
-        rendered += strings[index + 1]!;
+    let rendered = literals[0]!;
+    for (let index = 0; index < literals.length - 1; index += 1) {
+        rendered += renderInterpolation(values[index], compiled.plans[index]!);
+        rendered += literals[index + 1]!;
     }
     return markup(rendered);
 }
