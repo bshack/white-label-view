@@ -7,6 +7,8 @@ const booleanAttributes = new Set([
     'nomodule', 'novalidate', 'open', 'playsinline', 'readonly', 'required', 'reversed', 'selected'
 ]);
 const validAttributeName = /^[A-Za-z_:][A-Za-z0-9:._-]*$/;
+const htmlWhitespace = /[ \t\n\f\r]/;
+const trailingHTMLWhitespace = /[ \t\n\f\r]$/;
 const escapedCharacters = /[&<>"']/g;
 const escapedCharacterValues: Record<string, string> = {
     '&': '&amp;',
@@ -101,6 +103,7 @@ function renderText(value: unknown): string {
             continue;
         }
         if (isHTMLMarkup(current)) {
+            assertContextPreservingMarkup(current);
             rendered += current.value;
             continue;
         }
@@ -213,7 +216,7 @@ function findRawTextEnd(state: ParseState, source: string, lower: string, index:
 }
 
 function attributeNameBeforeQuote(source: string, quoteIndex: number): string {
-    const match = /([A-Za-z_:][A-Za-z0-9:._-]*)\s*=\s*$/.exec(source.slice(0, quoteIndex));
+    const match = /([A-Za-z_:][A-Za-z0-9:._-]*)[ \t\n\f\r]*=[ \t\n\f\r]*$/.exec(source.slice(0, quoteIndex));
     return match?.[1]?.toLowerCase() ?? '';
 }
 
@@ -242,10 +245,10 @@ function advance(state: ParseState, source: string) {
         }
 
         if (state.context === 'comment') {
-            const end = source.indexOf('-->', index);
-            if (end === -1) {return;}
+            const end = /--!?>/.exec(source.slice(index));
+            if (!end) {return;}
             state.context = 'text';
-            index = end + 3;
+            index += end.index + end[0].length;
             continue;
         }
 
@@ -269,23 +272,36 @@ function advance(state: ParseState, source: string) {
 
         const character = source[index]!;
         if (state.readingTagName) {
-            if (/\s/.test(character)) {
+            if (htmlWhitespace.test(character) || character === '/') {
                 state.readingTagName = false;
             } else if (character === '>') {
                 finishTag(state);
-            } else if (character !== '/') {
+            } else {
                 state.tagName += character.toLowerCase();
             }
             index += 1;
             continue;
         }
         if (character === '"' || character === "'") {
-            state.quotedAttributeName = attributeNameBeforeQuote(source, index);
-            state.context = character === '"' ? 'double' : 'single';
+            const attributeName = attributeNameBeforeQuote(source, index);
+            if (attributeName) {
+                state.quotedAttributeName = attributeName;
+                state.context = character === '"' ? 'double' : 'single';
+            }
         } else if (character === '>') {
             finishTag(state);
         }
         index += 1;
+    }
+}
+
+function assertContextPreservingMarkup(value: HTMLMarkup) {
+    const state: ParseState = {
+        context: 'text', tagName: '', closingTag: false, readingTagName: false, quotedAttributeName: ''
+    };
+    advance(state, value.value);
+    if (state.context !== 'text') {
+        throw new TypeError('Nested HTML markup must end in ordinary text context');
     }
 }
 
@@ -294,14 +310,19 @@ function compileTemplate(strings: readonly string[]): readonly InterpolationPlan
         context: 'text', tagName: '', closingTag: false, readingTagName: false, quotedAttributeName: ''
     };
     const plans: InterpolationPlan[] = [];
+    let attributeBoundary = false;
     for (let index = 0; index < strings.length - 1; index += 1) {
         const literal = strings[index]!;
         advance(state, literal);
-        const trimAttributeSpace = /\s$/.test(literal);
+        const trimAttributeSpace = trailingHTMLWhitespace.test(literal);
+        if (state.context !== 'tag') {
+            attributeBoundary = false;
+        } else if (literal.length > 0) {
+            attributeBoundary = trimAttributeSpace || /<[A-Za-z][A-Za-z0-9:._-]*$/.test(literal);
+        }
         plans.push({
             context: state.context,
-            attributeBoundary: state.context === 'tag' &&
-                (trimAttributeSpace || /<[A-Za-z][A-Za-z0-9:._-]*$/.test(literal)),
+            attributeBoundary,
             trimAttributeSpace,
             quotedAttributeName: state.quotedAttributeName
         });
@@ -329,8 +350,11 @@ function renderInterpolation(value: unknown, plan: InterpolationPlan): string {
         return renderQuotedAttribute(value);
     }
     if (plan.context === 'tag') {
+        if (!plan.attributeBoundary) {
+            throw new TypeError('Opening-tag interpolations are only supported at an attribute boundary');
+        }
         if (value === null || value === undefined || value === false) {return '';}
-        if (isAttributeMarkup(value) && plan.attributeBoundary) {
+        if (isAttributeMarkup(value)) {
             return plan.trimAttributeSpace ? value.value.slice(1) : value.value;
         }
         throw new TypeError('Opening-tag interpolations must use attributes() at an attribute boundary');
