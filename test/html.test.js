@@ -102,6 +102,7 @@ test('html rejects dynamic event-handler and srcdoc attribute content', () => {
     assert.throws(() => html`<button ONCLICK='${'alert(1)'}'>Bad</button>`, /event-handler attribute/);
     assert.throws(() => html`<iframe srcdoc="${'<script>alert(1)</script>'}"></iframe>`, /srcdoc/);
     assert.equal(text(html`<a href="${'javascript:caller-policy'}" title="${'safe'}">Link</a>`), '<a href="javascript:caller-policy" title="safe">Link</a>');
+    assert.equal(text(manualTemplate(['<div "', '"></div>'], 'literal')), '<div "literal"></div>');
 });
 
 test('html rejects ambiguous or dangerous interpolation contexts', () => {
@@ -118,6 +119,7 @@ test('raw-text end tags must be appropriate browser end tags', () => {
     assert.throws(() => html`<script></scriptx><p>${'alert(1)'}</p>`, /script content/);
     assert.throws(() => html`<style></stylex><p>${'color:red'}</p>`, /style content/);
     assert.throws(() => html`<script><!--<script></script><p>${'alert(1)'}</p>`, /script content/);
+    assert.throws(() => html`<script></script${'alert(1)'}`, /script content/);
 
     const delimiters = ['>', ' >', '\t>', '\n>', '\f>', '\r>', '/>'];
     for (const delimiter of delimiters) {
