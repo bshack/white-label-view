@@ -218,7 +218,9 @@ function renderInterpolation(value: unknown, state: ParseState, previousLiteral:
     if (state.context === 'double' || state.context === 'single') {return renderQuotedAttribute(value);}
     if (state.context === 'tag') {
         if (value === null || value === undefined || value === false) {return '';}
-        if (isAttributeMarkup(value) && canInsertAttributes(previousLiteral)) {return value.value;}
+        if (isAttributeMarkup(value) && canInsertAttributes(previousLiteral)) {
+            return /\s$/.test(previousLiteral) ? value.value.replace(/^ /, '') : value.value;
+        }
         throw new TypeError('Opening-tag interpolations must use attributes() at an attribute boundary');
     }
     throw new TypeError(`HTML interpolation is not supported inside ${state.context} content`);
