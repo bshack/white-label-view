@@ -20,6 +20,11 @@ test('html escapes text and quoted attribute interpolations', () => {
     assert.equal(isHTMLMarkup(output), true);
 });
 
+test('html preserves caller-authored literal whitespace', () => {
+    const output = html`  <span>spaced</span>  `;
+    assert.equal(text(output), '  <span>spaced</span>  ');
+});
+
 test('browser View renders branded tagged HTML output', () => {
     const dom = new JSDOM('<main></main>');
     const parentElement = dom.window.document.querySelector('main');
