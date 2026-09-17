@@ -10,12 +10,13 @@ const text = value => String(value);
 
 test('html escapes text and quoted attribute interpolations', () => {
     const value = '<Ada & "Grace">';
-    const output = html`<section title="Profile ${value}" data-name='${value}'><p>${value}</p></section>`;
+    const output = html`<section title="Profile ${value}" data-name='${value}' data-active="${true}"><p>${value}</p></section>`;
     assert.equal(
         text(output),
-        '<section title="Profile &lt;Ada &amp; &quot;Grace&quot;&gt;" data-name=\'&lt;Ada &amp; &quot;Grace&quot;&gt;\'><p>&lt;Ada &amp; &quot;Grace&quot;&gt;</p></section>'
+        '<section title="Profile &lt;Ada &amp; &quot;Grace&quot;&gt;" data-name=\'&lt;Ada &amp; &quot;Grace&quot;&gt;\' data-active="true"><p>&lt;Ada &amp; &quot;Grace&quot;&gt;</p></section>'
     );
     assert.equal(output.value, text(output));
+    assert.equal(output.toString(), output.value);
     assert.equal(isHTMLMarkup(output), true);
 });
 
