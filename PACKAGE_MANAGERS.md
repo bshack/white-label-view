@@ -10,7 +10,7 @@ yarn add white-label-view
 pnpm add white-label-view
 ```
 
-CI packs the real distributable artifact and installs that same artifact with all three package managers before exercising the browser, server, and JSX entrypoints.
+CI packs the real distributable artifact and installs that same artifact with all three package managers before exercising the browser, server, and tagged-HTML entrypoints.
 
 ## Repository development
 
