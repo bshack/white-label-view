@@ -53,6 +53,22 @@ test('html composes nested markup and arrays without double escaping', () => {
     assert.equal(text(output), '<ul><li>&lt;one&gt;</li><li>two</li></ul>');
 });
 
+test('html rejects nested markup that leaves an executable parsing context open', () => {
+    const payload = 'window.__securityProbe=1';
+    const scriptStart = html`<script>`;
+    const scriptEnd = html`</script>`;
+    const handlerStart = html`<button onclick="`;
+    const handlerEnd = html`">Test</button>`;
+
+    assert.throws(() => html`${scriptStart}${payload}${scriptEnd}`, /ordinary text context/);
+    assert.throws(
+        () => html`<section>${handlerStart}${payload}${handlerEnd}</section>`,
+        /ordinary text context/
+    );
+    assert.throws(() => html`${[scriptStart, payload, scriptEnd]}`, /ordinary text context/);
+    assert.throws(() => html`${unsafeHTML('<script>')}${payload}`, /ordinary text context/);
+});
+
 test('html handles deeply nested arrays without recursion and rejects cycles', () => {
     let deeplyNested = 'safe';
     for (let depth = 0; depth < 20_000; depth += 1) {deeplyNested = [deeplyNested];}
@@ -102,7 +118,17 @@ test('html rejects dynamic event-handler and srcdoc attribute content', () => {
     assert.throws(() => html`<button ONCLICK='${'alert(1)'}'>Bad</button>`, /event-handler attribute/);
     assert.throws(() => html`<iframe srcdoc="${'<script>alert(1)</script>'}"></iframe>`, /srcdoc/);
     assert.equal(text(html`<a href="${'javascript:caller-policy'}" title="${'safe'}">Link</a>`), '<a href="javascript:caller-policy" title="safe">Link</a>');
-    assert.equal(text(manualTemplate(['<div "', '"></div>'], 'literal')), '<div "literal"></div>');
+    assert.throws(() => manualTemplate(['<div "', '"></div>'], 'literal'), /Opening-tag interpolations/);
+});
+
+test('html rejects interpolation that splits attribute syntax', () => {
+    const payload = 'window.__securityProbe=1';
+    for (const empty of [null, undefined, false]) {
+        assert.throws(() => html`<button on${empty}click="${payload}">Test</button>`, /attribute boundary/);
+        assert.throws(() => html`<button onclick=${empty}"${payload}">Test</button>`, /attribute boundary/);
+        assert.throws(() => html`<button ON${empty}CLICK="${payload}">Test</button>`, /attribute boundary/);
+        assert.throws(() => html`<iframe src${empty}doc="${payload}"></iframe>`, /attribute boundary/);
+    }
 });
 
 test('html rejects ambiguous or dangerous interpolation contexts', () => {
@@ -128,8 +154,23 @@ test('raw-text end tags must be appropriate browser end tags', () => {
     }
 });
 
+test('html treats browser error-recovery states conservatively', () => {
+    const payload = 'window.__securityProbe=1';
+    assert.throws(() => html`<script/x>${payload}</script>`, /script content/);
+    assert.throws(() => html`<!-- --!><script>/* --> */${payload}</script>`, /script content/);
+    assert.throws(
+        () => html`<button data-x=abc"${' onmouseover=window.__securityProbe=1 x=y'}">Test</button>`,
+        /Opening-tag interpolations/
+    );
+    assert.throws(
+        () => manualTemplate(['<button\u00a0', '></button>'], attributes({title: 'safe'})),
+        /attribute boundary/
+    );
+});
+
 test('html tracks completed comments, raw-text elements, declarations, and quoted attributes', () => {
     assert.equal(text(html`<!-- fixed --><p>${'safe'}</p>`), '<!-- fixed --><p>safe</p>');
+    assert.equal(text(html`<!-- fixed --!><p>${'safe'}</p>`), '<!-- fixed --!><p>safe</p>');
     assert.equal(text(html`<script>fixed</script><p>${'safe'}</p>`), '<script>fixed</script><p>safe</p>');
     assert.equal(text(html`<style>p{display:block}</style><p>${'safe'}</p>`), '<style>p{display:block}</style><p>safe</p>');
     assert.equal(text(html`<!doctype html><p>${'safe'}</p>`), '<!doctype html><p>safe</p>');
