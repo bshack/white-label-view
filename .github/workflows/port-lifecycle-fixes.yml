@@ -1,4 +1,4 @@
-name: Port lifecycle fixes
+name: Finalize lifecycle port
 
 on:
   push:
@@ -8,21 +8,49 @@ permissions:
   contents: write
 
 jobs:
-  port:
+  finalize:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-      - name: Port lifecycle-only commits
+      - name: Update lifecycle documentation and remove helper
         run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('README.md')
+          text = path.read_text()
+
+          replacements = {
+              "For an attached root, `update(element, data)` gets the first opportunity to handle a render. A successful mount, adoption, or replacement initializes model binding, calls `addListeners()`, then calls `afterMount()`. Equal HTML output skips reparsing while attached, and equal DOM trees preserve the existing root.":
+              "For an attached root, `update(element, data)` gets the first opportunity to handle a render. A successful mount, adoption, or replacement initializes model binding, calls `addListeners()`, then calls `afterMount()`. The root is considered fully mounted only after those hooks succeed. If setup throws, View rolls back View-owned registrations and binding state, calls `removeListeners()` for subclass cleanup, and leaves the lifecycle retryable. Equal HTML output skips reparsing while attached, and equal DOM trees preserve the existing root.",
+              "Use `addListeners()` and `removeListeners()` when a View owns browser events. The same callback reference should be used for registration and cleanup.":
+              "Use `addListeners()` and `removeListeners()` when a View owns browser events. The same callback reference should be used for registration and cleanup. Because `removeListeners()` can also run while rolling back a partially completed mount, subclass cleanup should tolerate setup that did not finish.",
+              "| `destroyModelBinding()` | Release model subscription and queued work. | `undefined`. |":
+              "| `destroyModelBinding()` | Release model subscription and queued work, resetting binding state even if external listener removal throws. | `undefined`. |",
+              "| `addListeners()` | Extension hook after root installation/adoption. | The same View by default. |":
+              "| `addListeners()` | Extension hook during root activation after installation/adoption. | The same View by default. |",
+              "| `removeListeners()` | Extension hook before replacement/destruction. | The same View by default. |":
+              "| `removeListeners()` | Extension hook before replacement/destruction and during failed-mount rollback. | The same View by default. |",
+              "| `destroy()` | Release listeners, binding, children, queued work, and DOM root. | The same View after cleanup. |":
+              "| `destroy()` | Best-effort release of listeners, binding, children, queued work, and DOM root. | The same View after successful cleanup; cleanup failures are reported after remaining cleanup is attempted. |",
+          }
+
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing expected README text: {old[:80]}')
+              text = text.replace(old, new, 1)
+
+          marker = "Delegated-event registry methods `on()`, `off()`, and `clear()` return the registry for chaining.\n\n## Server public API"
+          lifecycle = """Delegated-event registry methods `on()`, `off()`, and `clear()` return the registry for chaining.\n\n### Lifecycle failure handling\n\nMount setup is transactional from View's perspective: failed listener or mount hooks trigger best-effort rollback, preserve the original setup failure together with cleanup failures when necessary, and allow a later render to retry.\n\nTeardown is also best-effort. `destroy()` attempts each independent cleanup phase even when an earlier phase fails, resets internal lifecycle state, and then reports a single cleanup error or an `AggregateError` when multiple material failures occurred. After teardown attempts finish, the View holds a fresh detached root and delegated registry so the instance can be initialized again.\n\n## Server public API"""
+          if marker not in text:
+              raise SystemExit('missing lifecycle section insertion point')
+          text = text.replace(marker, lifecycle, 1)
+          path.write_text(text)
+          PY
+          rm .github/workflows/port-lifecycle-fixes.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git cherry-pick 569e44abc29d624ac2f9c3d6fdff93ea2b6bc1d0
-          git cherry-pick 9ba8ab90cae5a7bfa8ef7abbdcb6769e487e880c
-          git cherry-pick 20e5f9cf39890fdbe141764e5928aa6c5f730cef
-          git cherry-pick 0e5ac26288cf83c0ef486cfb0751a940bd7f83e4
-          git cherry-pick 5ae0ad1bba2cc194ede2353e711a0767a15b91bf
-          git cherry-pick 5b5e8516537037d661aab30cacc8d91efe333630
+          git add README.md .github/workflows/port-lifecycle-fixes.yml
+          git commit -m "Document failure-safe View lifecycle semantics"
           git push
