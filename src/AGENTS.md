@@ -11,6 +11,10 @@ These instructions are more specific than the repository-root agent guide for fi
 - Keep browser and server rendering entry points distinct. The server entry point must remain DOM-free.
 - First-party templates use `white-label-view/html` tagged template literals. Do not reintroduce a first-party JSX runtime, JSX compiler contract, framework dependency, or bundled third-party template engine.
 - `html`` ` escapes ordinary text and quoted-attribute interpolations and rejects ambiguous interpolation contexts rather than guessing how to serialize them.
+- Dynamic interpolation inside quoted `on*` event-handler attributes and `srcdoc` is rejected. Keep that rule aligned with `attributes()` rather than treating HTML escaping as JavaScript or nested-document sanitization.
+- `<script>` and `<style>` context tracking must only exit on an appropriate browser end-tag delimiter. Treat legacy script escaped/double-escaped states conservatively; rejecting an ambiguous interpolation is safer than guessing about tokenizer state.
+- Cached interpolation plans must never be reused against changed literal strings. Preserve the literal snapshot/revalidation boundary for manually supplied or otherwise non-standard template-string arrays.
+- Nested interpolation arrays must not recurse on the JavaScript call stack and cyclic arrays must fail explicitly rather than exhausting the process.
 - `attributes()` owns conditional/boolean attribute serialization. Keep attribute-name validation strict, reject inline `on*` handlers and `srcdoc`, and do not silently coerce object/function values.
 - `unsafeHTML()` and direct trusted HTML strings are explicit trust boundaries. Never describe HTML escaping as a URL, JavaScript, CSS, or general sanitization policy; callers still validate context-sensitive values.
 - Trusted `HTMLMarkup` and `attributes()` values use package-instance-owned identity. Do not replace the private runtime-owned identity check with global symbols, public marker properties, duck typing, or cross-copy implicit trust. Strings crossing package-copy or renderer boundaries are explicit application-owned trust decisions.
