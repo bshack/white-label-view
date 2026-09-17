@@ -8,6 +8,13 @@ const booleanAttributes = new Set([
 ]);
 const validAttributeName = /^[A-Za-z_:][A-Za-z0-9:._-]*$/;
 const escapedCharacters = /[&<>"']/g;
+const escapedCharacterValues: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+};
 
 type Context = 'text' | 'tag' | 'double' | 'single' | 'comment' | 'script' | 'style';
 
@@ -60,13 +67,7 @@ function isAttributeMarkup(value: unknown): value is AttributeMarkup {
 }
 
 function escapeHTML(value: string): string {
-    return value.replace(escapedCharacters, character => {
-        if (character === '&') {return '&amp;';}
-        if (character === '<') {return '&lt;';}
-        if (character === '>') {return '&gt;';}
-        if (character === '"') {return '&quot;';}
-        return '&#39;';
-    });
+    return value.replace(escapedCharacters, character => escapedCharacterValues[character]!);
 }
 
 function scalar(value: unknown, attribute = false): string {
@@ -167,23 +168,22 @@ function advance(state: ParseState, source: string) {
     let index = 0;
     while (index < source.length) {
         if (state.context === 'text') {
+            const tagStart = source.indexOf('<', index);
+            if (tagStart === -1) {return;}
+            index = tagStart;
             if (source.startsWith('<!--', index)) {
                 state.context = 'comment';
                 index += 4;
                 continue;
             }
-            if (source[index] === '<') {
-                startTag(state);
-                index += 1;
-                if (source[index] === '/') {
-                    state.closingTag = true;
-                    index += 1;
-                } else if (source[index] === '!' || source[index] === '?') {
-                    state.readingTagName = false;
-                }
-                continue;
-            }
+            startTag(state);
             index += 1;
+            if (source[index] === '/') {
+                state.closingTag = true;
+                index += 1;
+            } else if (source[index] === '!' || source[index] === '?') {
+                state.readingTagName = false;
+            }
             continue;
         }
 
@@ -255,7 +255,7 @@ function renderInterpolation(value: unknown, plan: InterpolationPlan): string {
     if (plan.context === 'tag') {
         if (value === null || value === undefined || value === false) {return '';}
         if (isAttributeMarkup(value) && plan.attributeBoundary) {
-            return plan.trimAttributeSpace && value.value.startsWith(' ') ? value.value.slice(1) : value.value;
+            return plan.trimAttributeSpace ? value.value.slice(1) : value.value;
         }
         throw new TypeError('Opening-tag interpolations must use attributes() at an attribute boundary');
     }
@@ -271,7 +271,7 @@ export function html(strings: TemplateStringsArray, ...values: unknown[]): HTMLM
     }
     let rendered = strings[0]!;
     for (let index = 0; index < strings.length - 1; index += 1) {
-        if (index < values.length) {rendered += renderInterpolation(values[index], plans[index]!);}
+        rendered += renderInterpolation(values[index], plans[index]!);
         rendered += strings[index + 1]!;
     }
     return markup(rendered);
