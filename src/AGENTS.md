@@ -13,7 +13,7 @@ These instructions are more specific than the repository-root agent guide for fi
 - `html`` ` escapes ordinary text and quoted-attribute interpolations and rejects ambiguous interpolation contexts rather than guessing how to serialize them.
 - `attributes()` owns conditional/boolean attribute serialization. Keep attribute-name validation strict, reject inline `on*` handlers and `srcdoc`, and do not silently coerce object/function values.
 - `unsafeHTML()` and direct trusted HTML strings are explicit trust boundaries. Never describe HTML escaping as a URL, JavaScript, CSS, or general sanitization policy; callers still validate context-sensitive values.
-- `HTMLMarkup` interoperability across duplicate installed copies uses the global symbol registry. The brand is an interoperability marker, not the security boundary; `unsafeHTML()` remains the explicit trust boundary.
+- Trusted `HTMLMarkup` and `attributes()` values use package-instance-owned identity. Do not replace the private runtime-owned identity check with global symbols, public marker properties, duck typing, or cross-copy implicit trust. Strings crossing package-copy or renderer boundaries are explicit application-owned trust decisions.
 - Preserve delegated browser-event ownership, model subscription cleanup, child ownership, batching, and lifecycle teardown.
 - Browser template output still resolves to one root element. Server template output still resolves to a trusted string or White Label `HTMLMarkup`.
 - Third-party engines, including KitaJS HTML for JSX, remain application-owned integrations tested only against the synchronous View output contract.
