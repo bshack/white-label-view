@@ -1,5 +1,5 @@
-const htmlMarkupBrand = Symbol.for('white-label-view.HTMLMarkup');
-const attributeMarkupBrand = Symbol.for('white-label-view.AttributeMarkup');
+const htmlMarkupValues = new WeakSet<object>();
+const attributeMarkupValues = new WeakSet<object>();
 
 const booleanAttributes = new Set([
     'allowfullscreen', 'async', 'autofocus', 'autoplay', 'checked', 'controls', 'default', 'defer',
@@ -42,25 +42,22 @@ export interface HTMLMarkup {
 const templatePlans = new WeakMap<TemplateStringsArray, readonly InterpolationPlan[]>();
 
 function markup(value: string): HTMLMarkup {
-    return Object.freeze({
-        [htmlMarkupBrand]: true,
+    const result = {
         value,
         toString: () => value,
         [Symbol.toPrimitive]: () => value
-    });
+    };
+    htmlMarkupValues.add(result);
+    return Object.freeze(result);
 }
 
-/** Identify output created by this package, including output from another installed copy. */
+/** Identify tagged output created by this installed package instance. */
 export function isHTMLMarkup(value: unknown): value is HTMLMarkup {
-    return typeof value === 'object' && value !== null &&
-        (value as Record<PropertyKey, unknown>)[htmlMarkupBrand] === true &&
-        typeof (value as {value?: unknown}).value === 'string';
+    return typeof value === 'object' && value !== null && htmlMarkupValues.has(value);
 }
 
 function isAttributeMarkup(value: unknown): value is AttributeMarkup {
-    return typeof value === 'object' && value !== null &&
-        (value as Record<PropertyKey, unknown>)[attributeMarkupBrand] === true &&
-        typeof (value as {value?: unknown}).value === 'string';
+    return typeof value === 'object' && value !== null && attributeMarkupValues.has(value);
 }
 
 function escapeHTML(value: string): string {
@@ -134,7 +131,9 @@ export function attributes(values: Record<string, unknown>): AttributeMarkup {
         const normalized = attributeValue(value);
         if (normalized !== null) {rendered += ` ${name}="${escapeHTML(normalized)}"`;}
     }
-    return Object.freeze({[attributeMarkupBrand]: true, value: rendered}) as AttributeMarkup;
+    const result: AttributeMarkup = {value: rendered};
+    attributeMarkupValues.add(result);
+    return Object.freeze(result);
 }
 
 /** Insert caller-owned, already trusted or sanitized HTML without escaping. */
