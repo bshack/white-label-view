@@ -1,7 +1,7 @@
 {
   "name": "white-label-view",
-  "version": "6.0.0",
-  "description": "Framework-independent TypeScript rendering and lifecycle for progressive enhancement, existing server-rendered DOM, SSR, serverless functions, and optional JSX.",
+  "version": "7.0.0",
+  "description": "Framework-independent TypeScript rendering and lifecycle for progressive enhancement, existing server-rendered DOM, SSR, serverless functions, and tagged HTML templates.",
   "sideEffects": false,
   "main": "dist/index.js",
   "files": [
@@ -29,8 +29,9 @@
     "typescript",
     "view",
     "rendering",
-    "jsx",
-    "jsx-without-react",
+    "html",
+    "tagged-template",
+    "html-template",
     "dom",
     "server-rendering",
     "server-rendered",
@@ -111,15 +112,10 @@
       "require": "./dist/server.js",
       "default": "./dist/server.js"
     },
-    "./jsx-runtime": {
-      "types": "./dist/jsx-runtime.d.ts",
-      "require": "./dist/jsx-runtime.js",
-      "default": "./dist/jsx-runtime.js"
-    },
-    "./jsx-dev-runtime": {
-      "types": "./dist/jsx-runtime.d.ts",
-      "require": "./dist/jsx-runtime.js",
-      "default": "./dist/jsx-runtime.js"
+    "./html": {
+      "types": "./dist/html.d.ts",
+      "require": "./dist/html.js",
+      "default": "./dist/html.js"
     }
   }
 }
