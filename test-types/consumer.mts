@@ -1,8 +1,12 @@
 import View from '../dist/index.js';
 import ServerView from '../dist/server.js';
-const settings: View.Settings = {parentElement: document.body, template: () => '<p>Hello</p>'};
+import {attributes, html, unsafeHTML, type HTMLMarkup} from '../dist/html.js';
+
+const tagged: HTMLMarkup = html`<p ${attributes({hidden: false, 'data-id': 1})}>${'<Ada>'}${unsafeHTML('<strong>trusted</strong>')}</p>`;
+const settings: View.Settings = {parentElement: document.body, template: () => tagged};
 const view = new View(settings);
 view.initialize().destroy();
+new ServerView({template: () => tagged}).initialize();
 
 class ProfileView extends View {
     override update(element: Node, data: unknown): boolean {
@@ -30,7 +34,7 @@ declare const eventTargetObservable: {
     removeEventListener(event: 'change', listener: (event: CustomEvent<{count: number}>) => void): unknown;
 };
 new View({model: eventTargetObservable});
-new ServerView({model: eventTargetObservable, template: data => `<p>${String(data)}</p>`});
+new ServerView({model: eventTargetObservable, template: data => html`<p>${String(data)}</p>`});
 
 const child = new View();
 profile.addChild(child).releaseChild(child);
