@@ -1,5 +1,5 @@
-import {isJSXMarkup} from './jsx-runtime.js';
-import type {JSXMarkup} from './jsx-runtime.js';
+import {isHTMLMarkup} from './html.js';
+import type {HTMLMarkup} from './html.js';
 
 /** Data source consumed by the server rendering lifecycle. Observable models use the native EventTarget contract. */
 interface ViewModel {
@@ -11,7 +11,7 @@ interface ViewModel {
 /** Server settings mirror the portable subset of browser View settings. */
 interface ViewSettings {
     model?: object & ViewModel;
-    template?: (data: unknown) => string | JSXMarkup;
+    template?: (data: unknown) => string | HTMLMarkup;
 }
 
 /**
@@ -19,7 +19,7 @@ interface ViewSettings {
  * DOM nodes, delegated events, focus, and mounting remain browser responsibilities.
  */
 class View {
-    declare template?: (data: unknown) => string | JSXMarkup;
+    declare template?: (data: unknown) => string | HTMLMarkup;
     renderedTemplate?: string;
     modelChangeHandler: () => void;
     modelBindingInitialized = false;
@@ -108,13 +108,13 @@ class View {
         }
         const data = this.model && typeof this.model.get === 'function' ? this.model.get() : this.model || {};
         const output = this.template(data);
-        if (isJSXMarkup(output)) {
+        if (isHTMLMarkup(output)) {
             this.renderedTemplate = output.value;
         } else if (typeof output === 'string') {
-            // Direct strings intentionally keep browser View's trusted-markup semantics.
+            // Third-party and direct strings intentionally keep browser View's trusted-markup semantics.
             this.renderedTemplate = output;
         } else {
-            throw new TypeError('The server view template must return a string or White Label JSX markup');
+            throw new TypeError('The server view template must return a string or White Label HTML markup');
         }
         this.initializeModelBinding();
         return this;
