@@ -2,17 +2,17 @@
 
 # Repository Guide — white-label-view
 
-Browser template rendering, model-driven updates, delegated events, and lifecycle cleanup.
+Framework-independent browser/server rendering, adopted-DOM lifecycle, model-driven updates, delegated events, and first-party tagged HTML.
 
-Verified against `package.json`, `README.md`, and `.github/workflows/security.yml` on September 13, 2026. Recheck those files when commands or supported environments change.
+Verified against `package.json`, `README.md`, `TEMPLATE_ENGINES.md`, and `.github/workflows/security.yml` on September 17, 2026. Recheck those files when commands or supported environments change.
 
 ## Code map
 
-`src/` contains implementation TypeScript, including the framework-independent JSX runtime; `test/` holds Node and TSX consumer tests; `tsconfig.consumer.json` checks consumer types; `dist/index.js`, `dist/jsx-runtime.js`, and their declarations are the package entry points.
+`src/index.ts` contains browser View behavior; `src/server.ts` contains the DOM-free server View; `src/html.ts` contains the first-party tagged HTML helpers; `test/` holds runtime, consumer-type, security, and integration tests; `tsconfig.consumer.json` checks consumer types. Published entry points are `white-label-view`, `white-label-view/server`, and `white-label-view/html` with generated files under `dist/`.
 
 ## Toolchain and checks
 
-Use npm >=11.0 and Node.js `^22.18.0 || >=24.11.0`; CI uses Node 24. Run from the repository root:
+Use npm >=11.0 and Node.js `^22.18.0 || >=24.11.0`; CI uses Node 24 and also verifies the advertised minimum. Run from the repository root:
 
 ```sh
 npm ci --ignore-scripts
@@ -23,9 +23,9 @@ npm run coverage
 npm run audit
 ```
 
-`npm test` builds implementation code, checks consumer types, and runs Node tests. `npm run coverage` enforces 100% statements, branches, functions, and lines per included implementation file. CI builds from authored source, uploads generated package artifacts for inspection, audits dependencies, packs the package, and verifies that the packed browser/server/JSX entry points install and load correctly.
+`npm test` builds implementation code, checks consumer types, and runs Node tests. `npm run coverage` enforces 100% statements, branches, functions, and lines per included implementation file. CI builds from authored source, audits dependencies, packs the package, verifies browser/server/tagged-HTML entry points, exercises supported package managers, and runs the template-engine compatibility matrix.
 
-Source-first testing policy: authored source and the committed lockfile are authoritative. Keep behavior, consumer-type, 100% coverage, build, audit, package, and packed-install verification strict. Do not rewrite dependency metadata or commit generated `dist/` output from CI merely to keep source and generated files synchronized. Reduce CI noise by removing brittle synchronization checks, not by weakening tests, lowering coverage, skipping type checks, or bypassing package/runtime verification.
+Source-first testing policy: authored source and the committed lockfile are authoritative. Keep behavior, consumer-type, 100% coverage, build, audit, package, packed-install, minimum-runtime, and template-engine verification strict. Do not rewrite dependency metadata or commit generated `dist/` output merely to satisfy a source-vs-generated drift check.
 
 ESLint is configured through `eslint.config.mjs`; run `npm run lint` and treat warnings as failures. No dedicated formatter script is configured.
 
@@ -35,11 +35,13 @@ For one Node test file, first run `npm run build`, then `node --test test/path-t
 
 This repository is a library; no development-server script is defined. Build with `npm run build` and exercise browser behavior through the existing tests or a consuming application. The documented library workflow does not require production credentials.
 
-Edit authored TypeScript, not compiled JavaScript or declarations. Generate `dist/` through the existing compiler when validating, packaging, or releasing. Review generated artifacts when material to the requested change, but do not require a PR or bot job to commit compiler output merely to satisfy a source-vs-generated drift check unless the repository's current release process explicitly requires it.
+Edit authored TypeScript, not compiled JavaScript or declarations. Generate `dist/` through the existing compiler when validating, packaging, or releasing. Review generated artifacts when material to the requested change, but do not require a PR or bot job to commit compiler output merely to satisfy a drift check unless the current release process explicitly requires it.
 
 ## Architectural boundaries
 
-Keep templates pluggable. The first-party JSX runtime must remain framework-independent and must not introduce React, Preact, or an external template-engine dependency. Preserve listener cleanup and model-to-view binding without inventing automatic form-to-model writes. JSX escapes ordinary strings, while `raw()` and direct HTML strings remain trusted caller input.
+Keep View renderer-agnostic. The first-party rendering path is `white-label-view/html`, not an internal JSX runtime. `html` escapes ordinary text and quoted-attribute interpolations; `attributes()` validates/escapes opening-tag attributes and rejects intrinsic `on*` handlers and `srcdoc`; `unsafeHTML()` is an explicit caller-owned trust boundary rather than a sanitizer. Trusted tagged output uses package-instance-owned identity and must not be changed to a forgeable global/public marker. JSX and other third-party renderers remain application-owned integrations.
+
+Preserve listener cleanup, model-to-view binding, adopted-root ownership, update-only adopted-DOM behavior, DOM-free server rendering, and the documented browser/server lifecycle. Do not invent automatic form-to-model writes, hydration, virtual-DOM reconciliation, or hidden host-DOM retention semantics.
 
 ---
 
@@ -711,19 +713,6 @@ Do not perform the following without explicit approval:
 
 Never overwrite or discard work that may have been created outside the current task.
 
-## Remote-write branch safety
-
-Before any remote repository write, including file creation, file replacement, file deletion, commits, ref updates, or pull-request preparation:
-
-1. Determine the repository's actual default branch from repository metadata; do not infer it from conventions or another repository.
-2. Unless the user explicitly requests a direct default-branch modification, create a dedicated task branch before the first write.
-3. Verify that the task branch exists and points to the intended base commit or ref before writing files.
-4. Pass the task branch or ref explicitly to every remote write operation. Never omit the branch/ref and rely on a tool's default-branch behavior.
-5. After each write, verify the returned commit/head and any pull-request head still belong to the intended task branch.
-6. If branch creation or branch verification fails, stop remote writes and diagnose the failure. Never work around it by omitting the branch/ref or writing to the default branch.
-7. If an accidental default-branch write occurs, disclose it immediately and restore the intended net content with a non-destructive forward commit unless the user explicitly authorizes history rewriting.
-8. Open pull requests from the verified task branch. Merging remains a separate action requiring applicable user authorization.
-
 ---
 
 # 27. External Services and APIs
@@ -925,7 +914,6 @@ Before declaring a task complete, verify all applicable items:
 - [ ] Existing project conventions were followed.
 - [ ] The prescribed runtime, package manager, lockfile, and task runner were used.
 - [ ] Generated files were handled through their source or generator when applicable.
-- [ ] Remote writes used a verified task branch and explicit branch/ref unless the user explicitly requested a direct default-branch write.
 - [ ] Documentation/comments were added where appropriate.
 - [ ] Relevant tests were run.
 - [ ] Tests were not weakened simply to make them pass.
@@ -971,3 +959,26 @@ When rules conflict, prioritize:
 When uncertain:
 
 **Stop → explain → ask → proceed.**
+
+---
+
+# 33. Default-Branch Safety and Pull Request Workflow
+
+For any task that modifies a remote repository:
+
+1. Identify the repository's default branch before the first write.
+2. Create or verify a dedicated non-default task branch before changing files.
+3. Every remote file create, update, or delete action must explicitly name the intended task branch. Never rely on an omitted branch parameter for a write.
+4. Never use a write operation to test whether a branch exists. Use read-only branch lookup/search first, then create the branch explicitly if needed.
+5. Do not create temporary, probe, placeholder, or diagnostic commits/files merely to test repository access or connector behavior.
+6. Before each remote write, verify both the repository name and branch name match the current task.
+7. Open a pull request from the task branch to the default branch. Do not merge unless the user has separately authorized the merge.
+8. Direct writes to the default branch are prohibited for normal task work, even when the change is small, reversible, or documentation-only.
+
+If an accidental default-branch write occurs:
+
+1. Stop further writes and disclose the mistake promptly.
+2. Preserve the intended work on a task branch if needed.
+3. Restore the default branch with an ordinary forward commit that reverses only the accidental change, unless the user explicitly authorizes another recovery method.
+4. Do not force-push, reset, rewrite, or otherwise hide shared history to erase the mistake.
+5. Verify the default-branch content is restored and the intended change exists only in the task branch/PR before continuing.
