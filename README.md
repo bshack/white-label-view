@@ -228,13 +228,13 @@ See [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md) and the [public template-engine
 
 `initialize()` performs a synchronous `render()`. When a model exposes `get()`, View passes `model.get()` to the template/update hook; otherwise it passes the model itself.
 
-For an attached root, `update(element, data)` gets the first opportunity to handle a render. A successful mount, adoption, or replacement initializes model binding, calls `addListeners()`, then calls `afterMount()`. Equal HTML output skips reparsing while attached, and equal DOM trees preserve the existing root.
+For an attached root, `update(element, data)` gets the first opportunity to handle a render. A successful mount, adoption, or replacement initializes model binding, calls `addListeners()`, then calls `afterMount()`. The root is considered fully mounted only after those hooks succeed. If setup throws, View rolls back View-owned registrations and binding state, calls `removeListeners()` for subclass cleanup, and leaves the lifecycle retryable. Equal HTML output skips reparsing while attached, and equal DOM trees preserve the existing root.
 
 When template rendering is used, browser output must resolve to exactly one element. Invalid output throws `TypeError` without replacing the last successful root.
 
 ## Events and delegated events
 
-Use `addListeners()` and `removeListeners()` when a View owns browser events. The same callback reference should be used for registration and cleanup.
+Use `addListeners()` and `removeListeners()` when a View owns browser events. The same callback reference should be used for registration and cleanup. Because `removeListeners()` can also run while rolling back a partially completed mount, subclass cleanup should tolerate setup that did not finish.
 
 ```ts
 class ButtonView extends View {
@@ -290,13 +290,19 @@ For public content, prefer meaningful server-rendered or static initial HTML and
 | `addChild(child)` | Register child cleanup ownership. | The parent View; throws for cycles/conflicting ownership. |
 | `releaseChild(child)` | Release ownership without destroying the child. | The parent View. |
 | `initializeModelBinding()` | Subscribe to model `change` events. | `undefined`. |
-| `destroyModelBinding()` | Release model subscription and queued work. | `undefined`. |
-| `addListeners()` | Extension hook after root installation/adoption. | The same View by default. |
-| `removeListeners()` | Extension hook before replacement/destruction. | The same View by default. |
+| `destroyModelBinding()` | Release model subscription and queued work, resetting binding state even if external listener removal throws. | `undefined`. |
+| `addListeners()` | Extension hook during root activation after installation/adoption. | The same View by default. |
+| `removeListeners()` | Extension hook before replacement/destruction and during failed-mount rollback. | The same View by default. |
 | `afterMount()` | Extension hook after insertion/adoption and listener setup. | The same View by default. |
-| `destroy()` | Release listeners, binding, children, queued work, and DOM root. | The same View after cleanup. |
+| `destroy()` | Best-effort release of listeners, binding, children, queued work, and DOM root. | The same View after successful cleanup; cleanup failures are reported after remaining cleanup is attempted. |
 
 Delegated-event registry methods `on()`, `off()`, and `clear()` return the registry for chaining.
+
+### Lifecycle failure handling
+
+Mount setup is transactional from View's perspective: failed listener or mount hooks trigger best-effort rollback, preserve the original setup failure together with cleanup failures when necessary, and allow a later render to retry.
+
+Teardown is also best-effort. `destroy()` attempts each independent cleanup phase even when an earlier phase fails, resets internal lifecycle state, and then reports a single cleanup error or an `AggregateError` when multiple material failures occurred. After teardown attempts finish, the View holds a fresh detached root and delegated registry so the instance can be initialized again.
 
 ## Server public API
 
