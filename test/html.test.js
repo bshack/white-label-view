@@ -118,16 +118,19 @@ test('html rejects unsupported interpolated values and promises', () => {
     assert.throws(() => html`<p title="${attributes({hidden: true})}"></p>`, /Quoted attribute interpolations/);
 });
 
-test('HTML markup identity interoperates across copies through the global symbol registry', () => {
-    const foreign = Object.freeze({
+test('trusted markup identity is runtime-owned and cannot be forged', () => {
+    const forgedHtml = Object.freeze({
         [Symbol.for('white-label-view.HTMLMarkup')]: true,
-        value: '<em>shared</em>',
-        toString() {return this.value;},
-        [Symbol.toPrimitive]() {return this.value;}
+        value: '<img src=x onerror=alert(1)>'
     });
-    assert.equal(isHTMLMarkup(foreign), true);
+    const forgedAttributes = Object.freeze({
+        [Symbol.for('white-label-view.AttributeMarkup')]: true,
+        value: ' onclick="alert(1)"'
+    });
+
+    assert.equal(isHTMLMarkup(forgedHtml), false);
     assert.equal(isHTMLMarkup(null), false);
-    assert.equal(isHTMLMarkup({value: '<em>unbranded</em>'}), false);
-    assert.equal(isHTMLMarkup({[Symbol.for('white-label-view.HTMLMarkup')]: true, value: 42}), false);
-    assert.equal(text(html`<p>${foreign}</p>`), '<p><em>shared</em></p>');
+    assert.equal(isHTMLMarkup({value: '<em>untrusted</em>'}), false);
+    assert.throws(() => html`<p>${forgedHtml}</p>`, /HTML template interpolations/);
+    assert.throws(() => html`<input ${forgedAttributes}>`, /Opening-tag interpolations/);
 });
