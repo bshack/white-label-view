@@ -7,6 +7,7 @@ const booleanAttributes = new Set([
     'nomodule', 'novalidate', 'open', 'playsinline', 'readonly', 'required', 'reversed', 'selected'
 ]);
 const validAttributeName = /^[A-Za-z_:][A-Za-z0-9:._-]*$/;
+const escapedCharacters = /[&<>"']/g;
 
 type Context = 'text' | 'tag' | 'double' | 'single' | 'comment' | 'script' | 'style';
 
@@ -17,6 +18,12 @@ interface ParseState {
     readingTagName: boolean;
 }
 
+interface InterpolationPlan {
+    context: Context;
+    attributeBoundary: boolean;
+    trimAttributeSpace: boolean;
+}
+
 interface AttributeMarkup {readonly value: string}
 
 export interface HTMLMarkup {
@@ -25,12 +32,17 @@ export interface HTMLMarkup {
     [Symbol.toPrimitive](): string;
 }
 
+const templatePlans = new WeakMap<TemplateStringsArray, readonly InterpolationPlan[]>();
+
+function markupToString(this: HTMLMarkup): string {return this.value;}
+function markupToPrimitive(this: HTMLMarkup): string {return this.value;}
+
 function markup(value: string): HTMLMarkup {
     return Object.freeze({
         [htmlMarkupBrand]: true,
         value,
-        toString: () => value,
-        [Symbol.toPrimitive]: () => value
+        toString: markupToString,
+        [Symbol.toPrimitive]: markupToPrimitive
     });
 }
 
@@ -48,12 +60,13 @@ function isAttributeMarkup(value: unknown): value is AttributeMarkup {
 }
 
 function escapeHTML(value: string): string {
-    return value
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
+    return value.replace(escapedCharacters, character => {
+        if (character === '&') {return '&amp;';}
+        if (character === '<') {return '&lt;';}
+        if (character === '>') {return '&gt;';}
+        if (character === '"') {return '&quot;';}
+        return '&#39;';
+    });
 }
 
 function scalar(value: unknown, attribute = false): string {
@@ -66,7 +79,11 @@ function scalar(value: unknown, attribute = false): string {
 }
 
 function renderText(value: unknown): string {
-    if (Array.isArray(value)) {return value.map(renderText).join('');}
+    if (Array.isArray(value)) {
+        let rendered = '';
+        for (const entry of value) {rendered += renderText(entry);}
+        return rendered;
+    }
     if (isHTMLMarkup(value)) {return value.value;}
     if (isAttributeMarkup(value)) {throw new TypeError('attributes() may only be interpolated inside an opening tag');}
     return scalar(value);
@@ -82,13 +99,17 @@ function renderQuotedAttribute(value: unknown): string {
 function attributeValue(value: unknown): string | null {
     if (value === null || value === undefined || value === false) {return null;}
     if (Array.isArray(value)) {
-        return value.map(entry => {
-            if (entry === null || entry === undefined || entry === false) {return '';}
-            if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'bigint' || typeof entry === 'boolean') {
-                return String(entry);
+        let rendered = '';
+        for (const entry of value) {
+            if (entry === null || entry === undefined || entry === false) {continue;}
+            if (typeof entry !== 'string' && typeof entry !== 'number' &&
+                typeof entry !== 'bigint' && typeof entry !== 'boolean') {
+                throw new TypeError('Attribute arrays may contain only primitive values');
             }
-            throw new TypeError('Attribute arrays may contain only primitive values');
-        }).filter(Boolean).join(' ');
+            if (rendered) {rendered += ' ';}
+            rendered += String(entry);
+        }
+        return rendered;
     }
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
         return String(value);
@@ -99,14 +120,16 @@ function attributeValue(value: unknown): string | null {
 /** Render validated HTML attributes for interpolation in an opening tag. */
 export function attributes(values: Record<string, unknown>): AttributeMarkup {
     let rendered = '';
-    for (const [name, value] of Object.entries(values)) {
-        if (!validAttributeName.test(name) || /^on/i.test(name)) {
+    for (const name of Object.keys(values)) {
+        const value = values[name];
+        const lowerName = name.toLowerCase();
+        if (!validAttributeName.test(name) || lowerName.startsWith('on')) {
             throw new TypeError(`Unsupported HTML attribute name ${name}`);
         }
-        if (name.toLowerCase() === 'srcdoc') {
+        if (lowerName === 'srcdoc') {
             throw new TypeError('srcdoc requires an application-owned explicit HTML policy');
         }
-        if (value === true && booleanAttributes.has(name.toLowerCase())) {
+        if (value === true && booleanAttributes.has(lowerName)) {
             rendered += ` ${name}`;
             continue;
         }
@@ -209,34 +232,47 @@ function advance(state: ParseState, source: string) {
     }
 }
 
-function canInsertAttributes(previousLiteral: string): boolean {
-    return /\s$/.test(previousLiteral) || /<[A-Za-z][A-Za-z0-9:._-]*$/.test(previousLiteral);
+function compileTemplate(strings: TemplateStringsArray): readonly InterpolationPlan[] {
+    const state: ParseState = {context: 'text', tagName: '', closingTag: false, readingTagName: false};
+    const plans: InterpolationPlan[] = [];
+    for (let index = 0; index < strings.length - 1; index += 1) {
+        const literal = strings[index]!;
+        advance(state, literal);
+        const trimAttributeSpace = /\s$/.test(literal);
+        plans.push({
+            context: state.context,
+            attributeBoundary: state.context === 'tag' &&
+                (trimAttributeSpace || /<[A-Za-z][A-Za-z0-9:._-]*$/.test(literal)),
+            trimAttributeSpace
+        });
+    }
+    return plans;
 }
 
-function renderInterpolation(value: unknown, state: ParseState, previousLiteral: string): string {
-    if (state.context === 'text') {return renderText(value);}
-    if (state.context === 'double' || state.context === 'single') {return renderQuotedAttribute(value);}
-    if (state.context === 'tag') {
+function renderInterpolation(value: unknown, plan: InterpolationPlan): string {
+    if (plan.context === 'text') {return renderText(value);}
+    if (plan.context === 'double' || plan.context === 'single') {return renderQuotedAttribute(value);}
+    if (plan.context === 'tag') {
         if (value === null || value === undefined || value === false) {return '';}
-        if (isAttributeMarkup(value) && canInsertAttributes(previousLiteral)) {
-            return /\s$/.test(previousLiteral) ? value.value.replace(/^ /, '') : value.value;
+        if (isAttributeMarkup(value) && plan.attributeBoundary) {
+            return plan.trimAttributeSpace && value.value.startsWith(' ') ? value.value.slice(1) : value.value;
         }
         throw new TypeError('Opening-tag interpolations must use attributes() at an attribute boundary');
     }
-    throw new TypeError(`HTML interpolation is not supported inside ${state.context} content`);
+    throw new TypeError(`HTML interpolation is not supported inside ${plan.context} content`);
 }
 
 /** Render an HTML template with escaped interpolations and explicit trusted-markup boundaries. */
 export function html(strings: TemplateStringsArray, ...values: unknown[]): HTMLMarkup {
-    const state: ParseState = {context: 'text', tagName: '', closingTag: false, readingTagName: false};
-    let rendered = '';
-    for (let index = 0; index < strings.length; index += 1) {
-        const literal = strings[index]!;
-        rendered += literal;
-        advance(state, literal);
-        if (index < values.length) {
-            rendered += renderInterpolation(values[index], state, literal);
-        }
+    let plans = templatePlans.get(strings);
+    if (!plans) {
+        plans = compileTemplate(strings);
+        templatePlans.set(strings, plans);
+    }
+    let rendered = strings[0]!;
+    for (let index = 0; index < strings.length - 1; index += 1) {
+        if (index < values.length) {rendered += renderInterpolation(values[index], plans[index]!);}
+        rendered += strings[index + 1]!;
     }
     return markup(rendered);
 }
