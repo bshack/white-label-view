@@ -2,13 +2,13 @@
 
 # Repository Guide — white-label-view
 
-Browser template rendering, model-driven updates, delegated events, and lifecycle cleanup.
+Browser/server rendering, model-driven updates, delegated events, lifecycle cleanup, and first-party tagged HTML.
 
-Verified against `package.json`, `README.md`, and `.github/workflows/security.yml` on September 13, 2026. Recheck those files when commands or supported environments change.
+Verified against `package.json`, `README.md`, `TEMPLATE_ENGINES.md`, and `.github/workflows/security.yml` on September 17, 2026. Recheck those files when commands or supported environments change.
 
 ## Code map
 
-`src/` contains implementation TypeScript, including the framework-independent JSX runtime; `test/` holds Node and TSX consumer tests; `tsconfig.consumer.json` checks consumer types; `dist/index.js`, `dist/jsx-runtime.js`, and their declarations are the package entry points.
+`src/` contains the browser View, server View, delegated-events helper, and the `white-label-view/html` tagged-template implementation; `test/` holds Node/DOM behavior and consumer-type tests; `integration/` holds third-party renderer compatibility fixtures; `tsconfig.consumer.json` checks consumer types; `dist/index.js`, `dist/server.js`, and `dist/html.js` plus their declarations are the package entry points.
 
 ## Toolchain and checks
 
@@ -23,7 +23,7 @@ npm run coverage
 npm run audit
 ```
 
-`npm test` builds implementation code, checks consumer types, and runs Node tests. `npm run coverage` enforces 100% statements, branches, functions, and lines per included implementation file. CI builds from authored source, uploads generated package artifacts for inspection, audits dependencies, packs the package, and verifies that the packed browser/server/JSX entry points install and load correctly.
+`npm test` builds implementation code, checks consumer types, and runs Node tests. `npm run coverage` enforces 100% statements, branches, functions, and lines per included implementation file. CI builds from authored source, uploads generated package artifacts for inspection, audits dependencies, packs the package, and verifies that the packed browser, server, and tagged-HTML entry points install and load correctly. Separate compatibility CI exercises the documented third-party renderers, including application-owned JSX through KitaJS HTML.
 
 Source-first testing policy: authored source and the committed lockfile are authoritative. Keep behavior, consumer-type, 100% coverage, build, audit, package, and packed-install verification strict. Do not rewrite dependency metadata or commit generated `dist/` output from CI merely to keep source and generated files synchronized. Reduce CI noise by removing brittle synchronization checks, not by weakening tests, lowering coverage, skipping type checks, or bypassing package/runtime verification.
 
@@ -39,7 +39,9 @@ Edit authored TypeScript, not compiled JavaScript or declarations. Generate `dis
 
 ## Architectural boundaries
 
-Keep templates pluggable. The first-party JSX runtime must remain framework-independent and must not introduce React, Preact, or an external template-engine dependency. Preserve listener cleanup and model-to-view binding without inventing automatic form-to-model writes. JSX escapes ordinary strings, while `raw()` and direct HTML strings remain trusted caller input.
+Keep templates pluggable. `white-label-view/html` is the first-party template path; do not reintroduce a White Label JSX runtime/compiler contract, React/Preact dependency, or bundled third-party template engine. External JSX and other renderers remain application-owned integrations through View's existing template contract. Preserve listener cleanup and model-to-view binding without inventing automatic form-to-model writes.
+
+The `html` tag escapes ordinary interpolated text and quoted attribute values and rejects interpolation in ambiguous/executable contexts. `attributes()` validates attribute names and rejects intrinsic `on*` handlers and `srcdoc`. `unsafeHTML()` and direct application-owned HTML strings are explicit trust boundaries, and HTML escaping is not a URL, CSS, or general application-policy sanitizer.
 
 ---
 
