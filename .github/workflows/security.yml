@@ -52,11 +52,10 @@ jobs:
           node - <<'NODE'
           const View = require('white-label-view');
           const ServerView = require('white-label-view/server');
-          const jsxRuntime = require('white-label-view/jsx-runtime');
-          const jsxDevRuntime = require('white-label-view/jsx-dev-runtime');
+          const html = require('white-label-view/html');
           if (typeof View !== 'function' || typeof ServerView !== 'function' ||
-              typeof jsxRuntime.jsx !== 'function' || typeof jsxRuntime.jsxs !== 'function' ||
-              typeof jsxDevRuntime.jsxDEV !== 'function') process.exit(1);
+              typeof html.html !== 'function' || typeof html.attributes !== 'function' ||
+              typeof html.unsafeHTML !== 'function') process.exit(1);
           NODE
 
   minimum-node-runtime:
@@ -107,14 +106,14 @@ jobs:
           case "${{ matrix.package-manager }}" in
             npm)
               npm install --ignore-scripts "$PACKAGE" >/dev/null
-              node -e "const View=require('white-label-view'); const ServerView=require('white-label-view/server'); const jsx=require('white-label-view/jsx-runtime'); if (typeof View !== 'function' || typeof ServerView !== 'function' || typeof jsx.jsx !== 'function') process.exit(1)"
+              node -e "const View=require('white-label-view'); const ServerView=require('white-label-view/server'); const html=require('white-label-view/html'); if (typeof View !== 'function' || typeof ServerView !== 'function' || typeof html.html !== 'function') process.exit(1)"
               ;;
             yarn)
               yarn add "$PACKAGE" >/dev/null
-              yarn node -e "const View=require('white-label-view'); const ServerView=require('white-label-view/server'); const jsx=require('white-label-view/jsx-runtime'); if (typeof View !== 'function' || typeof ServerView !== 'function' || typeof jsx.jsx !== 'function') process.exit(1)"
+              yarn node -e "const View=require('white-label-view'); const ServerView=require('white-label-view/server'); const html=require('white-label-view/html'); if (typeof View !== 'function' || typeof ServerView !== 'function' || typeof html.html !== 'function') process.exit(1)"
               ;;
             pnpm)
               pnpm add --ignore-scripts "$PACKAGE" >/dev/null
-              pnpm exec node -e "const View=require('white-label-view'); const ServerView=require('white-label-view/server'); const jsx=require('white-label-view/jsx-runtime'); if (typeof View !== 'function' || typeof ServerView !== 'function' || typeof jsx.jsx !== 'function') process.exit(1)"
+              pnpm exec node -e "const View=require('white-label-view'); const ServerView=require('white-label-view/server'); const html=require('white-label-view/html'); if (typeof View !== 'function' || typeof ServerView !== 'function' || typeof html.html !== 'function') process.exit(1)"
               ;;
           esac
