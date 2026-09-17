@@ -41,15 +41,12 @@ export interface HTMLMarkup {
 
 const templatePlans = new WeakMap<TemplateStringsArray, readonly InterpolationPlan[]>();
 
-function markupToString(this: HTMLMarkup): string {return this.value;}
-function markupToPrimitive(this: HTMLMarkup): string {return this.value;}
-
 function markup(value: string): HTMLMarkup {
     return Object.freeze({
         [htmlMarkupBrand]: true,
         value,
-        toString: markupToString,
-        [Symbol.toPrimitive]: markupToPrimitive
+        toString: () => value,
+        [Symbol.toPrimitive]: () => value
     });
 }
 
