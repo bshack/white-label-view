@@ -319,7 +319,7 @@ Teardown is also best-effort. `destroy()` attempts each independent cleanup phas
 | `addChild(child)` | Register child cleanup ownership. | The parent server View. |
 | `releaseChild(child)` | Release ownership without destroying the child. | The same server View. |
 | `initializeModelBinding()` | Subscribe to model `change`. | The same server View. |
-| `destroyModelBinding()` | Release model subscription. | The same server View. |
+| `destroyModelBinding()` | Release the model subscription, resetting internal binding state before external listener removal so the instance remains reusable even if that external cleanup throws. | The same server View. |
 | `destroy()` | Destroy children, release subscriptions, and clear output. | The same server View. |
 
 ## HTML template API
