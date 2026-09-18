@@ -14,4 +14,4 @@ Raw-text parsing is intentionally conservative. Only an appropriate `</script>` 
 
 HTML escaping is not a URL, JavaScript, CSS, or application-policy sanitizer. Callers must still validate URL-bearing attributes, style values, and other context-sensitive data. Never pass uncontrolled user content through `unsafeHTML()` or a direct trusted HTML-string template without appropriate contextual escaping or sanitization.
 
-Third-party template engines remain responsible for their own escaping behavior. Compatibility testing means their synchronous output satisfies View's runtime contract; it does not mean White Label audits or guarantees the renderer's security model. In particular, follow KitaJS HTML's own `safe`/escaping guidance when using its JSX runtime.
+Third-party template engines remain responsible for their own escaping behavior. Compatibility testing means their synchronous output satisfies View's runtime contract; it does not mean White Label audits or guarantees any renderer's security model. Follow the selected renderer's own escaping and trusted-markup guidance.
