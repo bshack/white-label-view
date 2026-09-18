@@ -1,8 +1,8 @@
-import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import test from 'node:test';
+'use strict';
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const packageJson = require('../package.json');
 
-const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const testedRenderers = ['handlebars', 'eta', 'ejs', 'mustache', 'nunjucks', 'pug', '@kitajs/html'];
 const runtimeDependencyFields = ['dependencies', 'peerDependencies', 'optionalDependencies'];
 
