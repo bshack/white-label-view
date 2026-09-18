@@ -242,7 +242,7 @@ import {html} from 'white-label-view/html';
 class ButtonView extends View {
     handleClick = () => console.log('Clicked');
 
-    addListeners() {
+    override addListeners() {
         this.delegated.on('click', '[data-action="announce"]', this.handleClick);
         return this;
     }
