@@ -66,7 +66,7 @@ import {attributes, html, unsafeHTML} from 'white-label-view/html';
 
 ## First-party tagged HTML templates
 
-Tagged template literals are the first-party White Label template syntax. They are ordinary JavaScript/TypeScript syntax and require no JSX compiler mode or proprietary transform.
+Tagged template literals are the first-party White Label template syntax. They are ordinary JavaScript/TypeScript syntax and require no additional renderer dependency.
 
 ```ts
 import View from 'white-label-view';
@@ -210,7 +210,7 @@ The package currently documents Node.js as its supported server runtime. DOM-fre
 
 `View` is template-engine agnostic. Any renderer that synchronously returns compatible HTML can be called from `template`; White Label does not require an adapter.
 
-White Label currently tests these representative integrations through both Browser View and Server View:
+White Label pre-tests these representative third-party integrations through both Browser View and Server View:
 
 - Handlebars `4.7.9`
 - Eta `4.6.0`
@@ -218,11 +218,10 @@ White Label currently tests these representative integrations through both Brows
 - Mustache `4.2.0`
 - Nunjucks `3.2.4`
 - Pug `3.0.4`
-- KitaJS HTML `4.2.13` for synchronous JSX-to-HTML rendering
+- KitaJS HTML `4.2.13`
 
-KitaJS is a third-party JSX runtime, not a White Label dependency or first-party runtime. Its current security model requires callers to use Kita's `safe` attribute or explicit escaping for uncontrolled dynamic child strings. White Label compatibility does not replace Kita's own security guidance.
 
-See [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md) and the [public template-engine guide](https://whitelabeljs.org/docs/view/#template-engines) for the tested matrix, setup examples, and trust boundaries.
+See [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md) and the [public template-engine guide](https://whitelabeljs.org/docs/view/#template-engines) for the tested matrix, integration contract, and trust boundaries.
 
 ## Browser lifecycle
 
