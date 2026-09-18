@@ -32,7 +32,7 @@ CI verifies the packed `white-label-view` package with these representative engi
 | Mustache | 4.2.0 | Yes | Yes | Uses the engine's normal escaping. |
 | Nunjucks | 3.2.4 | Yes | Yes | Compatibility fixture enables `autoescape`. |
 | Pug | 3.0.4 | Yes | Yes | Uses escaped interpolation. |
-| KitaJS HTML | 4.2.13 | Yes | Yes | Uses the engine's own escaping rules. |
+| KitaJS HTML | 4.2.13 | Yes | Yes | Compatibility fixture marks dynamic child text `safe`; child expressions are otherwise unescaped by default. |
 
 The compatibility test renders untrusted-looking data through each engine and then passes the resulting HTML to White Label View. Engine-specific escaping remains application-owned.
 
