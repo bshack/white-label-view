@@ -20,8 +20,7 @@ test('tested third-party renderers remain application-owned dependencies', () =>
     }
 });
 
-
 test('compatibility documentation preserves renderer-specific escaping requirements', () => {
     const documentation = fs.readFileSync(require.resolve('../TEMPLATE_ENGINES.md'), 'utf8');
-    assert.match(documentation, /KitaJS HTML[^\n]*dynamic child text \`safe\`[^\n]*unescaped by default/);
+    assert.match(documentation, /KitaJS HTML[^\n]*dynamic child text `safe`[^\n]*unescaped by default/);
 });
