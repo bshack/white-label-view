@@ -9,7 +9,7 @@ These instructions are more specific than the repository-root agent guide for fi
 - Keep ownership narrow in embedded/server-rendered applications. A View owns its root and lifecycle, not unrelated host-rendered siblings or page chrome. `destroy()` removes the owned root; do not invent hidden hydration or host-DOM retention semantics.
 - Run an attached root's `update()` hook before requiring a template. If `update()` returns `false`, normal template rendering remains the fallback when a template exists.
 - Keep browser and server rendering entry points distinct. The server entry point must remain DOM-free.
-- First-party templates use `white-label-view/html` tagged template literals. Do not reintroduce a first-party JSX runtime, JSX compiler contract, framework dependency, or bundled third-party template engine.
+- First-party templates use `white-label-view/html` tagged template literals. Do not add a framework dependency, bundled third-party template engine, renderer-specific adapter, or compiler-specific runtime contract.
 - `html`` ` escapes ordinary text and quoted-attribute interpolations and rejects ambiguous interpolation contexts rather than guessing how to serialize them.
 - Dynamic interpolation inside quoted `on*` event-handler attributes and `srcdoc` is rejected. Keep that rule aligned with `attributes()` rather than treating HTML escaping as JavaScript or nested-document sanitization.
 - `<script>` and `<style>` context tracking must only exit on an appropriate browser end-tag delimiter. Treat legacy script escaped/double-escaped states conservatively; rejecting an ambiguous interpolation is safer than guessing about tokenizer state.
@@ -20,7 +20,7 @@ These instructions are more specific than the repository-root agent guide for fi
 - Trusted `HTMLMarkup` and `attributes()` values use package-instance-owned identity. Do not replace the private runtime-owned identity check with global symbols, public marker properties, duck typing, or cross-copy implicit trust. Strings crossing package-copy or renderer boundaries are explicit application-owned trust decisions.
 - Preserve delegated browser-event ownership, model subscription cleanup, child ownership, batching, and lifecycle teardown.
 - Browser template output still resolves to one root element. Server template output still resolves to a trusted string or White Label `HTMLMarkup`.
-- Third-party engines, including KitaJS HTML for JSX, remain application-owned integrations tested only against the synchronous View output contract.
+- Third-party engines remain application-owned integrations tested only against the synchronous View output contract.
 - Do not add framework-, CMS-, commerce-, or backend-specific adapters when the existing DOM/template/lifecycle contracts are sufficient. Integration belongs at the application boundary.
 
 ## Verification

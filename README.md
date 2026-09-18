@@ -66,7 +66,7 @@ import {attributes, html, unsafeHTML} from 'white-label-view/html';
 
 ## First-party tagged HTML templates
 
-Tagged template literals are the first-party White Label template syntax. They are ordinary JavaScript/TypeScript syntax and require no JSX compiler mode or proprietary transform.
+Tagged template literals are the first-party White Label template syntax. They are ordinary JavaScript/TypeScript syntax and require no additional renderer dependency.
 
 ```ts
 import View from 'white-label-view';
@@ -210,7 +210,7 @@ The package currently documents Node.js as its supported server runtime. DOM-fre
 
 `View` is template-engine agnostic. Any renderer that synchronously returns compatible HTML can be called from `template`; White Label does not require an adapter.
 
-White Label currently tests these representative integrations through both Browser View and Server View:
+White Label pre-tests these representative third-party integrations through both Browser View and Server View:
 
 - Handlebars `4.7.9`
 - Eta `4.6.0`
@@ -218,11 +218,10 @@ White Label currently tests these representative integrations through both Brows
 - Mustache `4.2.0`
 - Nunjucks `3.2.4`
 - Pug `3.0.4`
-- KitaJS HTML `4.2.13` for synchronous JSX-to-HTML rendering
+- KitaJS HTML `4.2.13`
 
-KitaJS is a third-party JSX runtime, not a White Label dependency or first-party runtime. Its current security model requires callers to use Kita's `safe` attribute or explicit escaping for uncontrolled dynamic child strings. White Label compatibility does not replace Kita's own security guidance.
 
-See [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md) and the [public template-engine guide](https://whitelabeljs.org/docs/view/#template-engines) for the tested matrix, setup examples, and trust boundaries.
+See [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md) and the [public template-engine guide](https://whitelabeljs.org/docs/view/#template-engines) for the tested matrix, integration contract, and trust boundaries.
 
 ## Browser lifecycle
 
@@ -234,25 +233,30 @@ When template rendering is used, browser output must resolve to exactly one elem
 
 ## Events and delegated events
 
-Use `addListeners()` and `removeListeners()` when a View owns browser events. The same callback reference should be used for registration and cleanup. Because `removeListeners()` can also run while rolling back a partially completed mount, subclass cleanup should tolerate setup that did not finish.
+Use `addListeners()` when a View owns browser events. For events inside a rendered root, `this.delegated` keeps listener ownership aligned with the View lifecycle and is cleared automatically when the root is replaced or the View is destroyed.
 
 ```ts
+import View from 'white-label-view';
+import {html} from 'white-label-view/html';
+
 class ButtonView extends View {
     handleClick = () => console.log('Clicked');
 
-    addListeners() {
-        this.element.addEventListener('click', this.handleClick);
-        return this;
-    }
-
-    removeListeners() {
-        this.element.removeEventListener('click', this.handleClick);
+    override addListeners() {
+        this.delegated.on('click', '[data-action="announce"]', this.handleClick);
         return this;
     }
 }
+
+const view = new ButtonView({
+    parentElement: document.querySelector('main')!,
+    template: () => html`<section>
+        <button type="button" data-action="announce">Announce</button>
+    </section>`
+}).initialize();
 ```
 
-For descendant events, `this.delegated` provides a native `addEventListener()`/`closest()` based registry. `delegate(scope)` creates a caller-owned registry. View-owned delegated registrations are cleared on root replacement or destruction.
+Use `removeListeners()` for direct listeners registered outside the View-owned delegated registry, reusing the same callback reference for registration and cleanup. Because `removeListeners()` can also run while rolling back a partially completed mount, subclass cleanup should tolerate setup that did not finish. `delegate(scope)` creates a separate caller-owned registry when a different event scope is needed.
 
 ## In-place updates and focus preservation
 

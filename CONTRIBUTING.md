@@ -19,7 +19,7 @@ npm pack --dry-run
 
 ## Pull requests
 
-Keep changes focused and preserve View's documented responsibilities: DOM lifecycle, model-driven rendering, delegated events, batching, child ownership, cleanup, adopted-DOM updates, and first-party tagged HTML templates. Do not introduce a framework dependency, JSX runtime, template adapter layer, or second lifecycle model without an explicit architectural decision.
+Keep changes focused and preserve View's documented responsibilities: DOM lifecycle, model-driven rendering, delegated events, batching, child ownership, cleanup, adopted-DOM updates, and first-party tagged HTML templates. Do not introduce a framework dependency, bundled third-party renderer, template adapter layer, compiler-specific runtime contract, or second lifecycle model without an explicit architectural decision.
 
 Add or update tests when behavior changes. Template changes should cover escaping, trusted-markup boundaries, browser/server parity, and invalid output where applicable. Do not weaken coverage, lint, type, or security checks to make a change pass. Review the complete diff for generated-file drift, credentials, private data, debugging code, and unrelated formatting changes.
 

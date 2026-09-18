@@ -23,7 +23,7 @@ npm run coverage
 npm run audit
 ```
 
-`npm test` builds implementation code, checks consumer types, and runs Node tests. `npm run coverage` enforces 100% statements, branches, functions, and lines per included implementation file. CI builds from authored source, uploads generated package artifacts for inspection, audits dependencies, packs the package, and verifies that the packed browser, server, and tagged-HTML entry points install and load correctly. Separate compatibility CI exercises the documented third-party renderers, including application-owned JSX through KitaJS HTML.
+`npm test` builds implementation code, checks consumer types, and runs Node tests. `npm run coverage` enforces 100% statements, branches, functions, and lines per included implementation file. CI builds from authored source, uploads generated package artifacts for inspection, audits dependencies, packs the package, and verifies that the packed browser, server, and tagged-HTML entry points install and load correctly. Separate compatibility CI exercises the documented third-party renderers without making them package dependencies or runtime integrations.
 
 Source-first testing policy: authored source and the committed lockfile are authoritative. Keep behavior, consumer-type, 100% coverage, build, audit, package, and packed-install verification strict. Do not rewrite dependency metadata or commit generated `dist/` output from CI merely to keep source and generated files synchronized. Reduce CI noise by removing brittle synchronization checks, not by weakening tests, lowering coverage, skipping type checks, or bypassing package/runtime verification.
 
@@ -39,7 +39,7 @@ Edit authored TypeScript, not compiled JavaScript or declarations. Generate `dis
 
 ## Architectural boundaries
 
-Keep templates pluggable. `white-label-view/html` is the first-party template path; do not reintroduce a White Label JSX runtime/compiler contract, React/Preact dependency, or bundled third-party template engine. External JSX and other renderers remain application-owned integrations through View's existing template contract. Preserve listener cleanup and model-to-view binding without inventing automatic form-to-model writes.
+Keep templates pluggable. `white-label-view/html` is the first-party template path; do not add bundled third-party template engines, renderer-specific adapters, or compiler-specific runtime contracts. Third-party renderers remain application-owned integrations through View's existing template contract. Preserve listener cleanup and model-to-view binding without inventing automatic form-to-model writes.
 
 The `html` tag escapes ordinary interpolated text and quoted attribute values and rejects interpolation in ambiguous/executable contexts. `attributes()` validates attribute names and rejects intrinsic `on*` handlers and `srcdoc`. `unsafeHTML()` and direct application-owned HTML strings are explicit trust boundaries, and HTML escaping is not a URL, CSS, or general application-policy sanitizer.
 
