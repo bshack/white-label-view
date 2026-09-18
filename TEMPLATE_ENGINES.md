@@ -8,7 +8,7 @@ For the public guide and the current tested-engine matrix, see [Template engines
 
 ## First-party templates
 
-Tagged templates require no JSX mode or renderer dependency:
+Tagged templates require no third-party renderer dependency:
 
 ```ts
 import {html} from 'white-label-view/html';
@@ -32,7 +32,7 @@ CI verifies the packed `white-label-view` package with these representative engi
 | Mustache | 4.2.0 | Yes | Yes | Uses the engine's normal escaping. |
 | Nunjucks | 3.2.4 | Yes | Yes | Compatibility fixture enables `autoescape`. |
 | Pug | 3.0.4 | Yes | Yes | Uses escaped interpolation. |
-| KitaJS HTML | 4.2.13 | Yes | Yes | Synchronous JSX-to-string rendering; fixture uses Kita's `safe` attribute for dynamic child text. |
+| KitaJS HTML | 4.2.13 | Yes | Yes | Uses the engine's own escaping rules. |
 
 The compatibility test renders untrusted-looking data through each engine and then passes the resulting HTML to White Label View. Engine-specific escaping remains application-owned.
 
@@ -67,30 +67,6 @@ No DOM globals are required.
 
 The View template contract is synchronous. Engines or engine features that return promises need to resolve that work before calling View; asynchronous renderer modes are not part of the tested compatibility contract.
 
-## JSX through KitaJS
-
-White Label no longer implements a first-party JSX runtime. Projects that prefer JSX can use a third-party JSX-to-HTML renderer such as KitaJS HTML:
-
-```json
-{
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "@kitajs/html"
-  }
-}
-```
-
-```tsx
-/** @jsxImportSource @kitajs/html */
-
-const template = (data: {name: string}) => (
-    <section>
-        <h1 safe>Hello {data.name}</h1>
-    </section>
-);
-```
-
-White Label tests synchronous output from `@kitajs/html@4.2.13` against the Browser and Server View contracts. KitaJS is not a White Label dependency. Follow Kita's own security guidance, including its `safe` attribute or explicit escaping for uncontrolled dynamic child strings and its optional TypeScript/XSS tooling where compatible with your toolchain.
 
 ## Other renderers
 
