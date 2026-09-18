@@ -92,11 +92,13 @@ class View {
 
     /** Release the model subscription owned by this view. */
     destroyModelBinding() {
-        if (this.modelBindingInitialized) {
-            this.boundModel!.removeEventListener!('change', this.modelChangeHandler);
-        }
+        const boundModel = this.boundModel;
+        const initialized = this.modelBindingInitialized;
         this.boundModel = undefined;
         this.modelBindingInitialized = false;
+        if (initialized) {
+            boundModel!.removeEventListener!('change', this.modelChangeHandler);
+        }
         return this;
     }
 
