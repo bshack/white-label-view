@@ -125,11 +125,13 @@ class View {
 
     /** Release owned children and subscriptions; the instance may be initialized again. */
     destroy() {
-        this.owner?.releaseChild(this);
-        try {this.destroyChildren();} finally {
-            this.destroyModelBinding();
-            this.renderedTemplate = undefined;
-        }
+        const errors: unknown[] = [];
+        try {this.owner?.releaseChild(this);} catch (error) {errors.push(error);}
+        try {this.destroyChildren();} catch (error) {errors.push(error);}
+        try {this.destroyModelBinding();} catch (error) {errors.push(error);}
+        this.renderedTemplate = undefined;
+        if (errors.length === 1) {throw errors[0];}
+        if (errors.length > 1) {throw new AggregateError(errors, 'Unable to destroy server view');}
         return this;
     }
 }

@@ -110,6 +110,40 @@ test('server view continues child cleanup and reports aggregate failures', t => 
     assert.equal(owner.addChild(owned), owner);
 });
 
+test('server view attempts every cleanup phase and preserves multiple failures', t => {
+    withoutBrowserGlobals(t);
+    const View = require('../dist/server');
+    const events = [];
+    const model = {
+        get: () => ({value: 'x'}),
+        addEventListener() {},
+        removeEventListener() {events.push('model'); throw new Error('model cleanup');}
+    };
+
+    const owner = new View();
+    const child = new View({model, template: () => '<p>child</p>'}).initialize();
+    child.addChild({
+        owner: undefined,
+        destroy() {events.push('child'); throw new Error('child cleanup');}
+    });
+    owner.addChild(child);
+    owner.releaseChild = () => {events.push('owner'); throw new Error('owner cleanup');};
+
+    assert.throws(() => child.destroy(), error => {
+        assert.equal(error instanceof AggregateError, true);
+        assert.deepEqual(
+            error.errors.map(item => item instanceof AggregateError
+                ? item.errors.map(inner => inner.message)
+                : item.message),
+            ['owner cleanup', ['child cleanup'], 'model cleanup']
+        );
+        return true;
+    });
+
+    assert.deepEqual(events, ['owner', 'child', 'model']);
+    assert.equal(child.toString(), '');
+});
+
 test('server view rejects DOM-like or unsupported template results', t => {
     withoutBrowserGlobals(t);
     const View = require('../dist/server');
