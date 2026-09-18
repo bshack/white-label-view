@@ -144,6 +144,28 @@ test('server view attempts every cleanup phase and preserves multiple failures',
     assert.equal(child.toString(), '');
 });
 
+test('server view resets binding state even when external listener removal throws', t => {
+    withoutBrowserGlobals(t);
+    const View = require('../dist/server');
+    let additions = 0;
+    let removals = 0;
+    const model = {
+        get: () => ({value: 'x'}),
+        addEventListener() {additions += 1;},
+        removeEventListener() {removals += 1; throw new Error('remove failed');}
+    };
+    const view = new View({model, template: () => '<p>x</p>'}).initialize();
+
+    assert.equal(additions, 1);
+    assert.throws(() => view.destroy(), /remove failed/);
+    assert.equal(removals, 1);
+
+    view.initialize();
+    assert.equal(additions, 2);
+    assert.throws(() => view.destroy(), /remove failed/);
+    assert.equal(removals, 2);
+});
+
 test('server view rejects DOM-like or unsupported template results', t => {
     withoutBrowserGlobals(t);
     const View = require('../dist/server');
