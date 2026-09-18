@@ -233,25 +233,30 @@ When template rendering is used, browser output must resolve to exactly one elem
 
 ## Events and delegated events
 
-Use `addListeners()` and `removeListeners()` when a View owns browser events. The same callback reference should be used for registration and cleanup. Because `removeListeners()` can also run while rolling back a partially completed mount, subclass cleanup should tolerate setup that did not finish.
+Use `addListeners()` when a View owns browser events. For events inside a rendered root, `this.delegated` keeps listener ownership aligned with the View lifecycle and is cleared automatically when the root is replaced or the View is destroyed.
 
 ```ts
+import View from 'white-label-view';
+import {html} from 'white-label-view/html';
+
 class ButtonView extends View {
     handleClick = () => console.log('Clicked');
 
     addListeners() {
-        this.element.addEventListener('click', this.handleClick);
-        return this;
-    }
-
-    removeListeners() {
-        this.element.removeEventListener('click', this.handleClick);
+        this.delegated.on('click', '[data-action="announce"]', this.handleClick);
         return this;
     }
 }
+
+const view = new ButtonView({
+    parentElement: document.querySelector('main')!,
+    template: () => html`<section>
+        <button type="button" data-action="announce">Announce</button>
+    </section>`
+}).initialize();
 ```
 
-For descendant events, `this.delegated` provides a native `addEventListener()`/`closest()` based registry. `delegate(scope)` creates a caller-owned registry. View-owned delegated registrations are cleared on root replacement or destruction.
+Use `removeListeners()` for direct listeners registered outside the View-owned delegated registry, reusing the same callback reference for registration and cleanup. Because `removeListeners()` can also run while rolling back a partially completed mount, subclass cleanup should tolerate setup that did not finish. `delegate(scope)` creates a separate caller-owned registry when a different event scope is needed.
 
 ## In-place updates and focus preservation
 
