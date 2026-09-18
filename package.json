@@ -1,6 +1,6 @@
 {
   "name": "white-label-view",
-  "version": "7.0.1",
+  "version": "7.0.2",
   "description": "Framework-independent TypeScript rendering and lifecycle for progressive enhancement, existing server-rendered DOM, SSR, serverless functions, and tagged HTML templates.",
   "sideEffects": false,
   "main": "dist/index.js",
