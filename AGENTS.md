@@ -6,6 +6,10 @@ Browser/server rendering, model-driven updates, delegated events, lifecycle clea
 
 Verified against `package.json`, `README.md`, `TEMPLATE_ENGINES.md`, and `.github/workflows/security.yml` on September 17, 2026. Recheck those files when commands or supported environments change.
 
+## Response style
+
+The owner requires concise, neutral, evidence-based responses (October 12, 2026). Do not add personality, enthusiasm, flattery or filler.
+
 ## Code map
 
 `src/` contains the browser View, server View, delegated-events helper, and the `white-label-view/html` tagged-template implementation; `test/` holds Node/DOM behavior and consumer-type tests; `integration/` holds third-party renderer compatibility fixtures; `tsconfig.consumer.json` checks consumer types; `dist/index.js`, `dist/server.js`, and `dist/html.js` plus their declarations are the package entry points.
