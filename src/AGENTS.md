@@ -25,4 +25,4 @@ These instructions are more specific than the repository-root agent guide for fi
 
 ## Verification
 
-Run the full lint, type, runtime, 100% per-file coverage, audit, packed-package, npm/Yarn/pnpm, minimum-Node, and template-engine compatibility checks before treating a source change as release-ready. Keep tagged-template security cases and adopted-markup/update-only regression coverage strict.
+Run the root full gate. A source change is release-ready only once CI's packed-package, npm/Yarn/pnpm, minimum-Node, and template-engine compatibility checks also pass. Keep the tagged-template security cases and the adopted-markup and update-only regression coverage strict.
