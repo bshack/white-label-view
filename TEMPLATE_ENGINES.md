@@ -18,7 +18,19 @@ const template = (data: {name: string}) => html`
 `;
 ```
 
-Normal text and quoted-attribute interpolations are escaped. Use `attributes()` for conditional/boolean attributes and `unsafeHTML()` only for application-owned trusted or sanitized markup.
+The tag escapes each interpolation for the position it appears in, or rejects it with a `TypeError`:
+
+| Position | Result |
+| --- | --- |
+| Text content | Escaped. `null`, `undefined`, and booleans render nothing. Nested `html`, `unsafeHTML()`, and arrays are inserted as markup. |
+| `<textarea>`, `<title>` content | Escaped primitives (or arrays of them); nested markup is rejected. |
+| Quoted attribute value | Escaped primitives; rejected inside `on*` handlers and `srcdoc`. |
+| Opening tag, at an attribute boundary | `attributes()` results (or `null`/`undefined`/`false`) only. |
+| Tag or attribute name, unquoted value, comment, DOCTYPE or other declaration | Rejected. |
+| `<script>`, `<style>`, `<xmp>`, `<iframe>`, `<noembed>`, `<noframes>`, `<noscript>`, `<plaintext>` content | Rejected. |
+| After markup whose parsing is ambiguous (for example `<style>` inside `<svg>`) | Rejected for the rest of the template. |
+
+Use `attributes()` for conditional/boolean attributes and `unsafeHTML()` only for application-owned trusted or sanitized markup. See [`README.md`](README.md#where-interpolation-is-allowed) for examples and the full ambiguity rules.
 
 ## Tested third-party engines
 
@@ -67,7 +79,6 @@ No DOM globals are required.
 
 The View template contract is synchronous. Engines or engine features that return promises need to resolve that work before calling View; asynchronous renderer modes are not part of the tested compatibility contract.
 
-
 ## Other renderers
 
 A renderer does not need a White Label adapter. Install it in the application and call it from `template`:
@@ -88,7 +99,7 @@ White Label does not sanitize third-party template output. Use each engine's esc
 
 Compatibility with an engine does not mean White Label audits or guarantees that engine's behavior, security, performance, or release lifecycle. Applications own their template-engine dependency and version choice.
 
-The first-party `html`` ` API has its own stricter contract: it escapes ordinary interpolations and rejects ambiguous interpolation contexts. That safety behavior should not be assumed for third-party engines.
+The first-party `html` tag has its own stricter contract (the table above): it escapes interpolations for their position and rejects ambiguous or executable positions. Do not assume that behavior from third-party engines.
 
 ## Why there are no adapters
 

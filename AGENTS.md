@@ -2,11 +2,17 @@
 
 Browser/server rendering, model-driven updates, delegated events, lifecycle cleanup, and first-party tagged HTML.
 
-Verified against `package.json`, `README.md`, `TEMPLATE_ENGINES.md`, and `.github/workflows/security.yml` on September 17, 2026. Recheck those files when commands or supported environments change.
+Verified against `package.json`, `README.md`, `TEMPLATE_ENGINES.md`, and `.github/workflows/security.yml` on October 19, 2026. Recheck those files when commands or supported environments change.
 
 ## Code map
 
-`src/` contains the browser View, server View, delegated-events helper, and the `white-label-view/html` tagged-template implementation (see `src/AGENTS.md`); `test/` holds Node/DOM behavior and consumer-type tests; `integration/` holds third-party renderer compatibility fixtures; `tsconfig.consumer.json` checks consumer types; `dist/index.js`, `dist/server.js`, and `dist/html.js` plus their declarations are the package entry points.
+- `src/index.ts`: browser View and the `DelegatedEvents` registry.
+- `src/server.ts`: DOM-free server View (`white-label-view/server`).
+- `src/html.ts`: `html`, `attributes()`, `unsafeHTML()`, `isHTMLMarkup()` (`white-label-view/html`), built on a small HTML-tokenizer model that plans each interpolation. Contracts in `src/AGENTS.md`.
+- `test/*.test.js`: Node tests against `dist/` with jsdom; `test/html-tokenizer.test.js` covers interpolation-context tracking. `test-types/consumer.mts` plus `tsconfig.consumer.json` check consumer types.
+- `integration/`: third-party template-engine fixtures, run only by `template-engines.yml` CI against the packed package.
+- `benchmark/view.bench.js`: `npm run benchmark`; not part of the gate.
+- `dist/index.js`, `dist/server.js`, `dist/html.js` and their declarations are the package entry points.
 
 ## Toolchain
 
@@ -46,7 +52,7 @@ Edit authored TypeScript, not compiled JavaScript or declarations. Generate `dis
 
 Keep templates pluggable. `white-label-view/html` is the first-party template path; do not add bundled third-party template engines, renderer-specific adapters, or compiler-specific runtime contracts. Third-party renderers remain application-owned integrations through the existing View template contract. Preserve listener cleanup and model-to-view binding without inventing automatic form-to-model writes.
 
-The `html` tag escapes ordinary interpolated text and quoted attribute values and rejects interpolation in ambiguous or executable contexts. `attributes()` validates attribute names and rejects intrinsic `on*` handlers and `srcdoc`. `unsafeHTML()` and direct application-owned HTML strings are explicit trust boundaries, and HTML escaping is not a URL, CSS, or general application-policy sanitizer.
+The `html` tag escapes ordinary interpolated text and quoted attribute values and rejects interpolation in ambiguous or executable contexts; the README table "Where interpolation is allowed" is the documented contract and must change with the code. `attributes()` validates attribute names and rejects intrinsic `on*` handlers and `srcdoc`. `unsafeHTML()` and direct application-owned HTML strings are explicit trust boundaries, and HTML escaping is not a URL, CSS, or general application-policy sanitizer.
 
 ---
 

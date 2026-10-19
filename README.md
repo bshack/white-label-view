@@ -86,11 +86,34 @@ const view = new View({
 }).initialize();
 ```
 
-Normal text and quoted-attribute interpolations are HTML-escaped. Nested `html`` ` results and arrays of tagged-template results compose without double escaping. In text content, `null`, `undefined`, and booleans render no text. In quoted attribute values, `null` and `undefined` render an empty value and booleans render `true` or `false`; use `attributes()` to omit an attribute or render a boolean attribute by presence. Numbers and bigints render as text in both contexts.
+`html` returns `HTMLMarkup`, which Browser View and Server View both accept. It must be called as a tag; calling it with a non-array or an empty array (for example `html([])`) throws `TypeError`.
 
-The tag rejects ambiguous or dangerous interpolation locations such as tag names, unquoted attributes, HTML comments, declarations, `<script>` bodies, and `<style>` bodies. Objects, functions, symbols, promises, DOM nodes, and other unsupported values also throw instead of being coerced implicitly.
+### Where interpolation is allowed
 
-Context tracking follows the HTML tokenizer. `<textarea>` and `<title>` content is escaped text: primitive interpolations are allowed, but nested `html`` ` or `unsafeHTML()` markup is rejected because it could end the element. Interpolation inside `<xmp>`, `<iframe>`, `<noembed>`, `<noframes>`, `<noscript>`, and `<plaintext>` content is rejected, as for `<style>`. Markup inside `<noscript>` must parse the same way whether scripting is enabled or disabled. Inside `<svg>` and `<math>`, `<script>`, `<style>`, and raw-text elements reached after HTML integration points or breakout tags are treated as ambiguous: once the tag cannot determine how a browser will tokenize the rest of the template, every later interpolation is rejected.
+The tag reads the template's fixed text the way a browser's HTML tokenizer would, and decides once per template what each `${…}` position is. Values are then escaped for that position or rejected with a `TypeError`. It never guesses: when it cannot be sure how a browser will read the rest of the template, it rejects every later interpolation.
+
+| Position | Example | Result |
+| --- | --- | --- |
+| Text content | `<p>${value}</p>` | **Escaped.** Strings, numbers, and bigints render as text; `null`, `undefined`, and booleans render nothing. Nested `html` results, `unsafeHTML()`, and arrays of these are inserted as markup. |
+| `<textarea>` or `<title>` content | `<textarea>${value}</textarea>` | **Escaped** primitives (or arrays of them). Nested markup is **rejected** because it could close the element. |
+| Quoted attribute value | `title="${value}"`, `title='${value}'` | **Escaped** primitives. `null`/`undefined` render an empty value; booleans render `true`/`false`. Arrays and markup are rejected. |
+| Quoted `on*` handler or `srcdoc` value | `onclick="${value}"` | **Rejected.** |
+| Opening tag, at an attribute boundary | `<input ${attributes({…})}>`, `<input${attributes({…})}>`, `class="a"${attributes({…})}` | Only `attributes()` results, `null`, `undefined`, or `false`. Strings and other values are rejected. |
+| Tag name, attribute name, unquoted value | `<${tag}>`, `title=${value}` | **Rejected.** |
+| Comment, DOCTYPE, or other `<!…>` / `<?…>` declaration | `<!-- ${value} -->`, `<!doctype ${value}>` | **Rejected.** |
+| `<script>`, `<style>`, `<xmp>`, `<iframe>`, `<noembed>`, `<noframes>`, `<noscript>`, or `<plaintext>` content | `<style>${value}</style>` | **Rejected.** |
+| Text inside `<svg>` or `<math>` | `<svg><text>${value}</text></svg>` | **Escaped** as text. Nested markup is checked as SVG/MathML content. |
+| Anywhere after markup whose parsing is ambiguous | see below | **Rejected**, for this and every later interpolation in the template. |
+
+Markup counts as ambiguous when its meaning depends on something the template cannot show, for example:
+
+- `<script>` or `<style>` inside `<svg>`/`<math>`, or any raw-text element (such as `<textarea>`) after an SVG/MathML integration point like `<foreignObject>` or a tag such as `<p>` that can leave foreign content;
+- `<noscript>` content that would end in a different place with scripting turned off;
+- an `attributes()` insertion whose meaning depends on the next character, such as `<a${attributes({…})}b>` or `<a b ${attributes({…})}=c>`.
+
+A `<script>` that contains `<!--<script` stays open to the end of the template, so later interpolations are rejected as script content. A `<` that does not start a tag is ordinary text (`1 < 2 ${value}` works), and `<!-->` and `<!--->` are complete empty comments.
+
+Nested markup must itself end in ordinary text: `html` results and `unsafeHTML()` strings that leave a tag, attribute, comment, raw-text element, or SVG/MathML element open are rejected when interpolated. Objects, functions, symbols, promises, DOM nodes, and other unsupported values throw instead of being converted to strings.
 
 ### Conditional and boolean attributes
 
@@ -222,7 +245,6 @@ White Label pre-tests these representative third-party integrations through both
 - Pug `3.0.4`
 - KitaJS HTML `4.2.13`
 
-
 See [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md) and the [public template-engine guide](https://whitelabeljs.org/docs/view/#template-engines) for the tested matrix, integration contract, and trust boundaries.
 
 ## Browser lifecycle
@@ -346,18 +368,12 @@ All entrypoints use strict TypeScript and emit JavaScript, source maps, and decl
 
 ```sh
 npm ci --ignore-scripts
-npm run build
-npm run lint
-npm run typecheck
-npm test
-npm run coverage
-npm run audit
-npm pack --dry-run
+npm run lint && npm run coverage && npm run audit
 ```
 
-Coverage enforces 100% statements, branches, functions, and lines per implementation file. CI verifies the documented Node minimum and primary Node line, builds authored source, verifies public package subpaths from the packed artifact, tests npm/Yarn/pnpm compatibility, and runs the isolated template-engine matrix.
+`npm run coverage` builds (which typechecks), runs the consumer type checks and every Node test, and enforces 100% statements, branches, functions, and lines per implementation file, so `npm run typecheck` and `npm test` need no separate run. `npm run benchmark` measures render and tagged-template performance. CI also checks the minimum supported Node version, installs the packed package with npm, Yarn, and pnpm, and runs the third-party template-engine matrix.
 
-Edit `src/*.ts` and regenerate `dist`; do not edit generated files directly.
+Edit `src/*.ts`; `dist/` is compiler output. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Design boundary
 

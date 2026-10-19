@@ -1,18 +1,48 @@
-// Runtime-owned markup identity; the value records whether the markup is proven to leave an HTML
-// (non-foreign) parse in ordinary text context.
+/*
+ * The `html` tagged-template implementation behind `white-label-view/html`.
+ *
+ * How it works:
+ * 1. The first time a template literal is used, its fixed string parts ("literals") are run through a small
+ *    model of the browser's HTML tokenizer (`advance()`). The tokenizer state at the end of each literal tells
+ *    us where the next `${…}` lands: ordinary text, a quoted attribute value, an opening tag, a comment, and
+ *    so on.
+ * 2. `planInterpolation()` turns each state into a plan: escape as text, escape as an attribute value, accept
+ *    only `attributes()`, or reject with a message. Plans are cached per template-strings array, so later
+ *    calls only render values.
+ * 3. When the tokenizer cannot be sure how a browser would read the rest of the template, it enters the
+ *    AMBIGUOUS state and every later interpolation in that template is rejected. Rejecting is always safer
+ *    than guessing.
+ *
+ * The tokenizer is not a full HTML parser. It models the tokenizer states that decide where an
+ * interpolation lands, plus the few tree-builder decisions that switch tokenizer modes (raw-text elements
+ * such as <script>, and SVG/MathML "foreign" content).
+ *
+ * Trust is tracked by identity: only objects created by this module instance (recorded in the WeakMaps
+ * below) are treated as markup or attributes. A look-alike object, or output from another installed copy of
+ * the package, is not trusted.
+ */
+
+// Markup created by html`` or unsafeHTML(). The boolean is true once the markup is known to leave a plain
+// HTML (non-SVG/MathML) parse in ordinary text, which lets it be nested without being re-scanned.
 const htmlMarkupValues = new WeakMap<object, boolean>();
+// Results created by attributes().
 const attributeMarkupValues = new WeakMap<object, true>();
 
+// Attributes that attributes() renders by presence alone (`checked`, not `checked="true"`) when true.
 const booleanAttributes = new Set([
     'allowfullscreen', 'async', 'autofocus', 'autoplay', 'checked', 'controls', 'default', 'defer',
     'disabled', 'formnovalidate', 'hidden', 'inert', 'ismap', 'itemscope', 'loop', 'multiple', 'muted',
     'nomodule', 'novalidate', 'open', 'playsinline', 'readonly', 'required', 'reversed', 'selected'
 ]);
+// Names attributes() accepts. Deliberately stricter than what browsers tolerate.
 const validAttributeName = /^[A-Za-z_:][A-Za-z0-9:._-]*$/;
+// A tag name that attributes() may follow directly, as in `<input${attributes(…)}>`.
 const plainTagName = /^[a-z][a-z0-9:._-]*$/;
+// The literal before an attributes() interpolation already ends in whitespace.
 const trailingHTMLWhitespace = /[ \t\n\f\r]$/;
 const escapedCharacter = /[&<>"']/;
 const escapedCharacters = /[&<>"']/g;
+// A comment ends at "-->" or the error-tolerant "--!>".
 const commentEnd = /--!?>/g;
 const escapedCharacterValues: Record<string, string> = {
     '&': '&amp;',
@@ -22,27 +52,58 @@ const escapedCharacterValues: Record<string, string> = {
     "'": '&#39;'
 };
 
-// Tokenizer states, named after the HTML Standard tokenizer states they model.
+/*
+ * Tokenizer states. Each is named after the HTML Standard tokenizer state it models. The comment says what
+ * the tokenizer is reading in that state and what happens to an interpolation placed there.
+ */
+/** Ordinary text between tags. Interpolations are escaped as text. */
 const DATA = 0;
+/** Just read "<". Decides whether a tag, an end tag, "<!", "<?", or plain text follows. Rejected. */
 const TAG_OPEN = 1;
+/** Just read "</". Rejected. */
 const END_TAG_OPEN = 2;
+/** Reading a tag name. Only attributes() is accepted, and only right after a plain opening-tag name. */
 const TAG_NAME = 3;
+/** Inside a tag, between attributes. attributes() is accepted. */
 const BEFORE_ATTRIBUTE_NAME = 4;
+/** Reading an attribute name. Rejected. */
 const ATTRIBUTE_NAME = 5;
+/** After an attribute name and whitespace, before "=" or the next attribute. attributes() is accepted. */
 const AFTER_ATTRIBUTE_NAME = 6;
+/** Just read "=". A value placed here would be unquoted, so it is rejected. */
 const BEFORE_ATTRIBUTE_VALUE = 7;
+/** Inside a "double-quoted" attribute value. Escaped, except in on* handlers and srcdoc, which are rejected. */
 const DOUBLE_QUOTED = 8;
+/** Inside a 'single-quoted' attribute value. Same rules as DOUBLE_QUOTED. */
 const SINGLE_QUOTED = 9;
+/** Inside an unquoted attribute value. Rejected. */
 const UNQUOTED = 10;
+/** Just closed a quoted value. attributes() is accepted. */
 const AFTER_QUOTED = 11;
+/** Read "/" inside a tag; a ">" next makes it self-closing. Rejected. */
 const SELF_CLOSING = 12;
+/** Read "<!" but the literal ended before it showed whether a comment or CDATA follows. Rejected. */
 const MARKUP_DECLARATION = 13;
+/** DOCTYPE, "<?…>", "</1…>" and similar declarations, which run to the next ">". Rejected. */
 const BOGUS_COMMENT = 14;
+/** Inside "<!-- … -->". Rejected. */
 const COMMENT = 15;
+/** Inside an element whose content is not read as tags (see rawTextElements). Only RCDATA accepts text. */
 const RAW_TEXT = 16;
-/** Sticky: the browser's tokenizer state cannot be determined, so every later interpolation is rejected. */
+/**
+ * The browser's tokenizer state cannot be determined from the template alone. This state is sticky:
+ * the rest of the template is not tracked and every later interpolation is rejected.
+ */
 const AMBIGUOUS = 17;
 
+/**
+ * How a raw-text element's content is read:
+ * - script: script data, which ends at </script> but has extra "<!--" escape rules (see scriptEnd()).
+ * - rawtext: no tags or character references until the matching end tag. Interpolation is rejected.
+ * - rcdata: no tags until the matching end tag, but character references are decoded, so escaped text is
+ *   safe there. Used by <textarea> and <title>.
+ * - plaintext: never ends.
+ */
 type RawKind = 'script' | 'rawtext' | 'rcdata' | 'plaintext';
 const rawTextElements = new Map<string, RawKind>([
     ['script', 'script'], ['style', 'rawtext'], ['xmp', 'rawtext'], ['iframe', 'rawtext'],
@@ -55,65 +116,103 @@ const foreignBreakoutElements = new Set([
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'menu', 'meta', 'nobr', 'ol',
     'p', 'pre', 'ruby', 's', 'small', 'span', 'strong', 'strike', 'sub', 'sup', 'table', 'tt', 'u', 'ul', 'var'
 ]);
+// Elements whose children are parsed as HTML again even though they sit inside <svg> or <math>.
 const svgIntegrationPoints = new Set(['foreignobject', 'desc', 'title']);
 const mathIntegrationPoints = new Set(['mi', 'mo', 'mn', 'ms', 'mtext', 'annotation-xml']);
 
+/** Everything the tokenizer remembers between characters, and between literals of one template. */
 interface ParseState {
+    /** One of the tokenizer state constants above. */
     state: number;
+    /** Lowercased name of the tag being read. */
     tagName: string;
+    /** The tag being read is an end tag ("</…"). */
     endTag: boolean;
+    /** The tag being read ended with "/>". */
     selfClosing: boolean;
+    /** Lowercased name of the attribute being read, used to reject on* and srcdoc values. */
     attributeName: string;
+    /** Name of the open raw-text element, such as "script" or "textarea". */
     rawTag: string;
     rawKind: RawKind;
     /**
-     * Offset of the raw-text content in the current source. Only RCDATA continues across literals, because
-     * compileTemplate makes every rejected interpolation context AMBIGUOUS.
+     * Offset in the current literal where the raw-text content began. It is only read for <noscript>, which
+     * always ends inside a single literal: an interpolation inside rawtext content is rejected, and a
+     * rejection makes the rest of the template AMBIGUOUS. Only RCDATA content continues into later literals.
      */
     rawStart: number;
-    /** Script data escape state: 0 none, 1 escaped, 2 double-escaped. */
+    /**
+     * Script "escape" state: 0 normal, 1 after "<!--" (escaped), 2 after "<!--<script" (double-escaped).
+     * Double-escaped script content is never treated as ended; see scriptEnd().
+     */
     scriptEscape: number;
-    /** Set after an attribute-boundary interpolation whose meaning depends on the following literal. */
+    /**
+     * Set to TAG_NAME or AFTER_ATTRIBUTE_NAME after an attributes() interpolation in that state. The next
+     * literal's first characters decide whether the insertion was safe; see advance() and AFTER_ATTRIBUTE_NAME.
+     */
     boundary: number;
-    /** Open SVG/MathML elements while the subtree is known to contain only foreign elements. */
+    /** Open SVG/MathML elements, while the subtree is known to contain only foreign elements. */
     foreign: string[];
+    /** "svg" or "math": the outermost open foreign element, which picks the integration-point list. */
     foreignRoot: string;
-    /** Foreign content may still be open but can no longer be tracked precisely. */
+    /**
+     * Foreign content may still be open, but a tag that can leave it (an integration point or a breakout tag)
+     * was seen, so whether the browser is reading HTML or SVG/MathML is no longer tracked precisely.
+     */
     foreignUncertain: boolean;
 }
 
+// What renderInterpolation() does with a value, decided once per interpolation when a template is compiled.
+/** Escaped text; nested markup and arrays allowed. */
 const TEXT = 0;
+/** Escaped text inside <textarea> or <title>; nested markup rejected because it could close the element. */
 const RCDATA = 1;
+/** Escaped quoted attribute value; primitives only. */
 const QUOTED = 2;
+/** Inside an opening tag; only attributes() results (or null, undefined, false) allowed. */
 const ATTRIBUTES = 3;
+/** Always throws with the plan's detail message. */
 const REJECT = 4;
 
 interface InterpolationPlan {
+    /** One of TEXT, RCDATA, QUOTED, ATTRIBUTES, REJECT. */
     kind: number;
+    /** The preceding literal already ends in whitespace, so drop the leading space attributes() renders. */
     trimAttributeSpace: boolean;
+    /** The interpolation sits inside SVG/MathML, so nested markup is re-checked as foreign content. */
     foreign: boolean;
     /** RCDATA element name, or the rejection message. */
     detail: string;
 }
 
 interface CompiledTemplate {
+    /** Snapshot of the literals the plans were computed from. */
     literals: readonly string[];
+    /** One plan per interpolation. */
     plans: readonly InterpolationPlan[];
+    /** The template ends in ordinary HTML text, so its output can be nested without being re-scanned. */
     contextPreserving: boolean;
     /** Frozen template arrays with data-property literals cannot change after compilation. */
     immutable: boolean;
 }
 
+/** Validated attribute text returned by attributes(). Only usable inside an opening tag. */
 interface AttributeMarkup {readonly value: string}
 
+/**
+ * Trusted markup returned by html`` and unsafeHTML(). Interpolating it into another html`` template inserts
+ * it without escaping. It converts to its HTML string through `value`, `toString()`, or string coercion.
+ */
 export interface HTMLMarkup {
     readonly value: string;
     toString(): string;
     [Symbol.toPrimitive](): string;
 }
 
+// Compiled plans keyed by the template-strings array that JavaScript passes to the tag.
 const templatePlans = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 
+/** Create a frozen, trusted markup object and record it in the identity map. */
 function markup(value: string, contextPreserving: boolean): HTMLMarkup {
     const result = {
         value,
@@ -124,7 +223,13 @@ function markup(value: string, contextPreserving: boolean): HTMLMarkup {
     return Object.freeze(result);
 }
 
-/** Identify tagged output created by this installed package instance. */
+/**
+ * Check whether a value is markup created by `html` or `unsafeHTML()` from this installed copy of the
+ * package. Objects that merely look like markup, and markup from another copy, return false.
+ *
+ * @param value - Any value.
+ * @returns True when `value` is trusted `HTMLMarkup` from this package instance.
+ */
 export function isHTMLMarkup(value: unknown): value is HTMLMarkup {
     return typeof value === 'object' && value !== null && htmlMarkupValues.has(value);
 }
@@ -133,12 +238,17 @@ function isAttributeMarkup(value: unknown): value is AttributeMarkup {
     return typeof value === 'object' && value !== null && attributeMarkupValues.has(value);
 }
 
+/** Escape &, <, >, " and ' as character references. Strings without them are returned as is. */
 function escapeHTML(value: string): string {
     return escapedCharacter.test(value)
         ? value.replace(escapedCharacters, character => escapedCharacterValues[character]!)
         : value;
 }
 
+/**
+ * Render a primitive. null and undefined render nothing; booleans render nothing in text and "true"/"false"
+ * in attribute values. Anything else (objects, functions, symbols) throws instead of being stringified.
+ */
 function scalar(value: unknown, attribute = false): string {
     if (value === null || value === undefined) {return '';}
     if (typeof value === 'string') {return escapeHTML(value);}
@@ -147,6 +257,11 @@ function scalar(value: unknown, attribute = false): string {
     throw new TypeError('HTML template interpolations must be primitive values, HTML markup, attributes, or arrays of supported values');
 }
 
+/**
+ * Render one non-array value in a text position.
+ * @param foreign - The position is inside SVG/MathML.
+ * @param rcdata - Name of the enclosing <textarea>/<title>, or '' outside RCDATA.
+ */
 function renderTextValue(value: unknown, foreign: boolean, rcdata: string): string {
     if (isHTMLMarkup(value)) {
         if (rcdata) {throw new TypeError(`Nested HTML markup is not supported inside ${rcdata} content`);}
@@ -157,9 +272,14 @@ function renderTextValue(value: unknown, foreign: boolean, rcdata: string): stri
     return scalar(value);
 }
 
+/**
+ * Render a text-position value, flattening nested arrays in order. Uses an explicit stack instead of
+ * recursion so deeply nested arrays cannot overflow the call stack, and throws on cyclic arrays.
+ */
 function renderText(value: unknown, foreign: boolean, rcdata: string): string {
     if (!Array.isArray(value)) {return renderTextValue(value, foreign, rcdata);}
     const activeArrays = new WeakSet<object>();
+    // An {array} entry marks the end of that array, so it can leave the cycle-detection set.
     const stack: Array<{value: unknown} | {array: unknown[]}> = [{value}];
     let rendered = '';
     while (stack.length) {
@@ -183,6 +303,7 @@ function renderText(value: unknown, foreign: boolean, rcdata: string): string {
     return rendered;
 }
 
+/** Quoted attribute values accept primitives only; markup, attributes() and arrays throw. */
 function renderQuotedAttribute(value: unknown): string {
     if (Array.isArray(value) || isHTMLMarkup(value) || isAttributeMarkup(value)) {
         throw new TypeError('Quoted attribute interpolations must be primitive values');
@@ -190,6 +311,10 @@ function renderQuotedAttribute(value: unknown): string {
     return scalar(value, true);
 }
 
+/**
+ * Convert one attributes() value to unescaped text, or null to omit the attribute. Arrays are joined with
+ * spaces after dropping null, undefined and false entries (handy for class lists).
+ */
 function attributeValue(value: unknown): string | null {
     if (value === null || value === undefined || value === false) {return null;}
     if (Array.isArray(value)) {
@@ -211,7 +336,20 @@ function attributeValue(value: unknown): string | null {
     throw new TypeError('Attribute values must be primitive values or arrays of primitive values');
 }
 
-/** Render validated HTML attributes for interpolation in an opening tag. */
+/**
+ * Build validated attributes to interpolate inside an opening tag, for example
+ * html`<input ${attributes({type: 'checkbox', checked: done})}>`.
+ *
+ * - `null`, `undefined` and `false` omit the attribute.
+ * - `true` renders a recognized boolean attribute (such as `checked` or `disabled`) by name alone; other
+ *   attributes render `"true"`.
+ * - Arrays are joined with spaces after dropping `null`, `undefined` and `false` entries.
+ * - Every value is quoted and escaped.
+ *
+ * @param values - Attribute names mapped to values, rendered in key order.
+ * @returns An attributes object accepted only inside an opening tag of an `html` template.
+ * @throws TypeError for an invalid name, an `on*` event-handler name, `srcdoc`, or a non-primitive value.
+ */
 export function attributes(values: Record<string, unknown>): AttributeMarkup {
     let rendered = '';
     for (const name of Object.keys(values)) {
@@ -235,12 +373,26 @@ export function attributes(values: Record<string, unknown>): AttributeMarkup {
     return Object.freeze(result);
 }
 
-/** Insert caller-owned, already trusted or sanitized HTML without escaping. */
+/**
+ * Mark a string as trusted HTML so an `html` template inserts it without escaping. This is an explicit trust
+ * boundary: pass only markup the application owns or has already sanitized, never raw user input.
+ *
+ * The markup is still checked when it is nested: it must not leave the surrounding template inside an open
+ * tag, comment or raw-text element.
+ *
+ * @param value - Trusted HTML.
+ * @returns Trusted `HTMLMarkup`.
+ * @throws TypeError when `value` is not a string.
+ */
 export function unsafeHTML(value: string): HTMLMarkup {
     if (typeof value !== 'string') {throw new TypeError('unsafeHTML() requires a string');}
     return markup(value, false);
 }
 
+/**
+ * Fresh tokenizer state in ordinary text.
+ * @param foreignUncertain - Start as if possibly inside SVG/MathML (used to check markup nested there).
+ */
 function createState(foreignUncertain: boolean): ParseState {
     return {
         state: DATA, tagName: '', endTag: false, selfClosing: false, attributeName: '', rawTag: '', rawKind: 'rawtext',
@@ -248,11 +400,15 @@ function createState(foreignUncertain: boolean): ParseState {
     };
 }
 
+/** True when the position may be inside SVG/MathML. */
 function inForeignContent(state: ParseState): boolean {
     return state.foreign.length > 0 || state.foreignUncertain;
 }
 
-/** Tokenizer whitespace; CR is normalized to LF before tokenization. */
+/**
+ * HTML tokenizer whitespace. Browsers turn CR into LF before tokenizing; templates still contain the raw CR,
+ * so it is accepted here too.
+ */
 function isWhitespace(code: number): boolean {
     return code === 32 || code === 9 || code === 10 || code === 12 || code === 13;
 }
@@ -261,12 +417,18 @@ function isAsciiAlpha(code: number): boolean {
     return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
 }
 
-/** ASCII-only lowercase keeps offsets stable; String#toLowerCase can change string length. */
+/**
+ * Lowercase one ASCII character, as the tokenizer does for tag and attribute names. String#toLowerCase is
+ * avoided because it also folds non-ASCII characters (sometimes into a different length), which browsers do not.
+ */
 function asciiLower(code: number): string {
     return String.fromCharCode(code >= 65 && code <= 90 ? code + 32 : code);
 }
 
-/** Match a lowercase ASCII tag name followed by a tag-name delimiter. */
+/**
+ * Check whether `source` has the tag name `name` (lowercase ASCII, compared case-insensitively) at `start`,
+ * followed by whitespace, "/" or ">". Returns false when the source ends before that delimiter.
+ */
 function matchesTagName(source: string, start: number, name: string): boolean {
     const end = start + name.length;
     if (end >= source.length) {return false;}
@@ -278,6 +440,7 @@ function matchesTagName(source: string, start: number, name: string): boolean {
     return isWhitespace(delimiter) || delimiter === 47 || delimiter === 62;
 }
 
+/** Start reading a new start or end tag. */
 function beginTag(state: ParseState, endTag: boolean) {
     state.state = TAG_NAME;
     state.tagName = '';
@@ -286,7 +449,18 @@ function beginTag(state: ParseState, endTag: boolean) {
     state.attributeName = '';
 }
 
-/** Apply a completed tag token, modelling only the tree-builder decisions that change tokenizer state. */
+/**
+ * Handle a finished tag. Besides returning to DATA, this models the few parser decisions that change how
+ * the following characters are tokenized:
+ * - Entering and leaving <svg>/<math> (foreign content).
+ * - Leaving foreign content through an integration point or a breakout tag. After that the parser may be
+ *   reading HTML or SVG/MathML, so tracking becomes "uncertain" and any raw-text element is AMBIGUOUS.
+ * - <script>/<style> inside SVG/MathML: their content is tokenized as markup but still executed or applied,
+ *   so they are AMBIGUOUS.
+ * - Ordinary HTML raw-text elements, which switch to RAW_TEXT.
+ *
+ * @param next - Offset just after the tag's ">", where raw-text content would begin.
+ */
 function emitTag(state: ParseState, next: number) {
     const name = state.tagName;
     state.state = DATA;
@@ -294,6 +468,7 @@ function emitTag(state: ParseState, next: number) {
     const foreign = state.foreign;
     if (state.endTag) {
         if (foreign.length && !state.foreignUncertain) {
+            // </p> and </br> are handled as HTML even inside foreign content.
             if (name === 'p' || name === 'br') {
                 state.foreignUncertain = true;
             } else {
@@ -338,9 +513,17 @@ function emitTag(state: ParseState, next: number) {
     }
 }
 
-/** Find the end tag of script data, following the escaped state and treating double escapes conservatively. */
+/**
+ * Find where script content ends, or return -1 if it does not end in `source`.
+ *
+ * Script content normally ends at "</script". Inside "<!--" (escaped) it still ends at "</script", and "-->"
+ * returns to normal. A "<script" inside the escaped part (double-escaped) means a later "</script" may not
+ * end the element, which depends on details this module does not track, so double-escaped script is treated
+ * as never ending: the script stays open and later interpolations are rejected.
+ */
 function scriptEnd(state: ParseState, source: string, index: number): number {
     let position = index;
+    // Where to look for "-->"; may start before `position` because the dashes of "<!--" count.
     let dashSearch = index;
     while (state.scriptEscape !== 2) {
         const lessThan = source.indexOf('<', position);
@@ -372,7 +555,10 @@ function scriptEnd(state: ParseState, source: string, index: number): number {
     return -1;
 }
 
-/** Return the offset of the raw-text element's end tag, or -1 while the content continues. */
+/**
+ * Return the offset of the raw-text element's end tag ("</name" plus a delimiter), or -1 while the content
+ * continues. May set the state to AMBIGUOUS (and return the source length) for an inconsistent <noscript>.
+ */
 function rawTextEnd(state: ParseState, source: string, index: number): number {
     if (state.rawKind === 'plaintext') {return -1;}
     if (state.rawKind === 'script') {return scriptEnd(state, source, index);}
@@ -392,16 +578,24 @@ function rawTextEnd(state: ParseState, source: string, index: number): number {
     }
 }
 
+/**
+ * True when `content`, read as ordinary HTML, ends back in plain text with nothing left open. Used to make
+ * sure <noscript> content ends at the same place with scripting on (raw text) and off (markup).
+ */
 function parsesAsText(content: string): boolean {
     const shadow = createState(false);
     advance(shadow, content);
     return shadow.state === DATA && shadow.foreign.length === 0 && !shadow.foreignUncertain;
 }
 
-/** Handle the characters after "<!"; returns the next offset to tokenize. */
+/**
+ * Handle what follows "<!": a comment ("<!--"), the empty comments "<!-->" and "<!--->", CDATA in foreign
+ * content, or a DOCTYPE/bogus comment. Returns the next offset to tokenize.
+ */
 function markupDeclaration(state: ParseState, source: string, index: number): number {
     if (source.startsWith('--', index)) {
         const contentStart = index + 2;
+        // "<!-->" and "<!--->" are complete (empty) comments.
         if (source.charCodeAt(contentStart) === 62) {
             state.state = DATA;
             return contentStart + 1;
@@ -427,6 +621,7 @@ function markupDeclaration(state: ParseState, source: string, index: number): nu
         return end + 1;
     }
     const rest = source.slice(index);
+    // The literal ends partway through "<!--" or "<![CDATA[", so the kind of declaration is still unknown.
     if (rest.length < 7 && ('--'.startsWith(rest) || (foreign && '[CDATA['.startsWith(rest)))) {
         state.state = MARKUP_DECLARATION;
         return source.length;
@@ -436,6 +631,10 @@ function markupDeclaration(state: ParseState, source: string, index: number): nu
     return index;
 }
 
+/**
+ * Run the tokenizer over one literal, updating `state` in place. Called once per literal while compiling a
+ * template, and over the value of nested markup to check that it ends in ordinary text.
+ */
 function advance(state: ParseState, source: string) {
     const length = source.length;
     let index = 0;
@@ -457,16 +656,19 @@ function advance(state: ParseState, source: string) {
         case TAG_OPEN: {
             const code = source.charCodeAt(index);
             if (code === 33) {
+                // "<!"
                 index = markupDeclaration(state, source, index + 1);
             } else if (code === 47) {
+                // "</"
                 state.state = END_TAG_OPEN;
                 index += 1;
             } else if (isAsciiAlpha(code)) {
                 beginTag(state, false);
             } else if (code === 63) {
+                // "<?" is read as a bogus comment.
                 state.state = BOGUS_COMMENT;
             } else {
-                // "<" not followed by a tag-name start is ordinary text.
+                // "<" not followed by a tag-name start is ordinary text, as in "1 < 2".
                 state.state = DATA;
             }
             break;
@@ -476,6 +678,7 @@ function advance(state: ParseState, source: string) {
             if (isAsciiAlpha(code)) {
                 beginTag(state, true);
             } else if (code === 62) {
+                // "</>" is dropped.
                 state.state = DATA;
                 index += 1;
             } else {
@@ -505,6 +708,7 @@ function advance(state: ParseState, source: string) {
                 state.state = AFTER_ATTRIBUTE_NAME;
             } else {
                 state.state = ATTRIBUTE_NAME;
+                // A leading "=" is part of the attribute name.
                 state.attributeName = code === 61 ? '=' : '';
                 if (code === 61) {index += 1;}
             }
@@ -561,6 +765,7 @@ function advance(state: ParseState, source: string) {
                 state.state = SINGLE_QUOTED;
                 index += 1;
             } else if (code === 62) {
+                // "name=>" ends the tag with an empty value.
                 index += 1;
                 emitTag(state, index);
             } else {
@@ -577,6 +782,7 @@ function advance(state: ParseState, source: string) {
             break;
         }
         case UNQUOTED: {
+            // Unquoted values end only at whitespace or ">"; quotes and "=" are part of the value.
             const code = source.charCodeAt(index);
             index += 1;
             if (isWhitespace(code)) {
@@ -598,6 +804,7 @@ function advance(state: ParseState, source: string) {
                 index += 1;
                 emitTag(state, index);
             } else {
+                // A character straight after the closing quote starts a new attribute name.
                 state.state = BEFORE_ATTRIBUTE_NAME;
             }
             break;
@@ -630,6 +837,7 @@ function advance(state: ParseState, source: string) {
         case RAW_TEXT: {
             const end = rawTextEnd(state, source, index);
             if (end === -1) {return;}
+            // rawTextEnd() may have switched to AMBIGUOUS; otherwise resume at the end tag, which DATA then reads.
             if (state.state === RAW_TEXT) {state.state = DATA;}
             index = end;
             break;
@@ -643,6 +851,11 @@ function advance(state: ParseState, source: string) {
     }
 }
 
+/**
+ * Throw unless nested markup ends in ordinary text, so it cannot leave the surrounding template inside an
+ * open tag, comment, raw-text element or SVG/MathML element. A pass is remembered for plain HTML positions
+ * so the same markup is not scanned twice.
+ */
 function assertContextPreservingMarkup(value: HTMLMarkup, foreign: boolean) {
     if (!foreign && htmlMarkupValues.get(value)) {return;}
     const state = createState(foreign);
@@ -660,6 +873,10 @@ function reject(message: string): InterpolationPlan {
 const attributeBoundaryRejection = reject('Opening-tag interpolations are only supported at an attribute boundary');
 const ambiguousRejection = reject('HTML interpolation is not supported after markup whose parsing context is ambiguous');
 
+/**
+ * Decide how to render the interpolation that follows `literal`, given the tokenizer state at its end.
+ * May set `state.boundary` so the next literal can confirm that an attributes() insertion is unambiguous.
+ */
 function planInterpolation(state: ParseState, literal: string): InterpolationPlan {
     switch (state.state) {
     case DATA:
@@ -697,10 +914,12 @@ function planInterpolation(state: ParseState, literal: string): InterpolationPla
     case AMBIGUOUS:
         return ambiguousRejection;
     default:
+        // TAG_OPEN, END_TAG_OPEN, ATTRIBUTE_NAME, BEFORE_ATTRIBUTE_VALUE, UNQUOTED, SELF_CLOSING, MARKUP_DECLARATION.
         return attributeBoundaryRejection;
     }
 }
 
+/** Tokenize every literal of a template and plan each interpolation between them. */
 function compileTemplate(literals: readonly string[], immutable: boolean): CompiledTemplate {
     const state = createState(false);
     const plans: InterpolationPlan[] = [];
@@ -722,6 +941,10 @@ function sameLiterals(left: readonly string[], right: readonly string[]): boolea
     return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+/**
+ * True when the strings array is frozen and every entry is a plain data property, so its literals can never
+ * change. Real template literals always qualify; hand-built arrays may not.
+ */
 function hasImmutableLiterals(strings: readonly unknown[]): boolean {
     if (!Object.isFrozen(strings)) {return false;}
     for (let index = 0; index < strings.length; index += 1) {
@@ -731,6 +954,7 @@ function hasImmutableLiterals(strings: readonly unknown[]): boolean {
     return true;
 }
 
+/** Render one interpolated value according to its plan. */
 function renderInterpolation(value: unknown, plan: InterpolationPlan): string {
     switch (plan.kind) {
     case TEXT:
@@ -750,6 +974,11 @@ function renderInterpolation(value: unknown, plan: InterpolationPlan): string {
     }
 }
 
+/**
+ * Return the compiled plan for a strings array, compiling on first use. Mutable or hand-built arrays are
+ * re-read on every call and recompiled if their literals changed, so a cached plan is never applied to
+ * different markup.
+ */
 function compiledTemplate(strings: TemplateStringsArray): CompiledTemplate {
     const cached = templatePlans.get(strings);
     // Frozen literal arrays cannot change, so only mutable or non-standard arrays need a fresh snapshot.
@@ -765,7 +994,25 @@ function compiledTemplate(strings: TemplateStringsArray): CompiledTemplate {
     return compiled;
 }
 
-/** Render an HTML template with escaped interpolations and explicit trusted-markup boundaries. */
+/**
+ * Tag for HTML template literals: html`<p>${name}</p>`.
+ *
+ * Each interpolation is handled according to where it appears:
+ * - Text content: strings, numbers and bigints are escaped; `null`, `undefined` and booleans render
+ *   nothing; nested `html`/`unsafeHTML()` markup and arrays of supported values are inserted as is.
+ * - `<textarea>` and `<title>` content: escaped primitives (or arrays of them); nested markup is rejected.
+ * - Quoted attribute values: escaped primitives only (booleans render "true"/"false"), except in `on*`
+ *   event handlers and `srcdoc`, which are rejected.
+ * - Inside an opening tag at an attribute boundary: only `attributes()` results, `null`, `undefined` or `false`.
+ * - Anywhere else (tag names, unquoted values, comments, declarations, `<script>`, `<style>` and other
+ *   raw-text elements, and anything after markup whose parsing is ambiguous): rejected.
+ *
+ * @param strings - The template's literal parts, supplied by JavaScript when used as a tag.
+ * @param values - The interpolated values.
+ * @returns Trusted `HTMLMarkup` for the rendered template.
+ * @throws TypeError when called without a non-empty strings array, when an interpolation is in a rejected
+ *   position, or when a value is not allowed in its position.
+ */
 export function html(strings: TemplateStringsArray, ...values: unknown[]): HTMLMarkup {
     if (typeof strings !== 'object' || strings === null) {throw new TypeError('html must be used with template strings');}
     const {literals, plans, contextPreserving} = compiledTemplate(strings);
