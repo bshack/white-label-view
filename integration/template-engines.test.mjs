@@ -26,8 +26,9 @@ const renderers = [
 ];
 
 for (const [name, render] of renderers) {
-    test(`${name} renders through browser View`, () => {
+    test(`${name} renders through browser View`, t => {
         const dom = new JSDOM('<main></main>');
+        t.after(() => dom.window.close());
         const parentElement = dom.window.document.querySelector('main');
         const view = new View({parentElement, model, template: render}).initialize();
 
@@ -35,15 +36,16 @@ for (const [name, render] of renderers) {
         assert.equal(parentElement.firstElementChild?.tagName, 'SECTION');
         assert.equal(parentElement.querySelector('h1')?.textContent, 'Hello <Ada & Grace>');
         view.destroy();
+        assert.equal(parentElement.children.length, 0);
     });
 
     test(`${name} renders through server View`, () => {
         const view = new ServerView({model, template: render}).initialize();
         const html = view.toString();
 
-        assert.match(html, /^<section><h1>Hello /);
-        assert.match(html, /&lt;Ada/);
-        assert.doesNotMatch(html, /<Ada/);
+        // `>` is safe in text content, and KitaJS leaves it unescaped; `<` and `&` must be escaped.
+        assert.match(html, /^<section><h1>Hello &lt;Ada &amp; Grace(?:&gt;|>)<\/h1><\/section>$/);
         view.destroy();
+        assert.equal(view.toString(), '');
     });
 }

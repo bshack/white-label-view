@@ -23,7 +23,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - name: Create packed package
-        run: npm pack --silent
+        run: npm pack --silent --ignore-scripts
       - name: Verify tagged templates and third-party engines
         run: |
           PACKAGE="$(realpath *.tgz)"

@@ -34,8 +34,9 @@ test('html preserves caller-authored literal whitespace', () => {
     assert.equal(text(output), '  <span>spaced</span>  ');
 });
 
-test('browser View renders branded tagged HTML output', () => {
+test('browser View renders branded tagged HTML output', t => {
     const dom = new JSDOM('<main></main>');
+    t.after(() => dom.window.close());
     const parentElement = dom.window.document.querySelector('main');
     const view = new View({
         parentElement,
@@ -44,7 +45,7 @@ test('browser View renders branded tagged HTML output', () => {
 
     assert.equal(parentElement.innerHTML, '<section><p>&lt;Ada&gt;</p></section>');
     view.destroy();
-    dom.window.close();
+    assert.equal(parentElement.childNodes.length, 0);
 });
 
 test('html composes nested markup and arrays without double escaping', () => {
@@ -226,4 +227,100 @@ test('trusted markup identity is runtime-owned and cannot be forged', () => {
     assert.equal(isHTMLMarkup({value: '<em>untrusted</em>'}), false);
     assert.throws(() => html`<p>${forgedHtml}</p>`, /HTML template interpolations/);
     assert.throws(() => html`<input ${forgedAttributes}>`, /Opening-tag interpolations/);
+});
+
+test('html escapes quote breakouts in single and double quoted attributes and text', () => {
+    assert.equal(
+        text(html`<p data-x='${"' onclick='alert(1)"}'>${"'"}</p>`),
+        "<p data-x='&#39; onclick=&#39;alert(1)'>&#39;</p>"
+    );
+    assert.equal(
+        text(html`<p title="${'"><script>alert(1)</script>'}"></p>`),
+        '<p title="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"></p>'
+    );
+    assert.equal(
+        text(html`<p>${'</p><script>alert(1)</script><!--'}</p>`),
+        '<p>&lt;/p&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;!--</p>'
+    );
+    assert.equal(text(html`<p>${['<a>', ["'", ['&']]]}</p>`), '<p>&lt;a&gt;&#39;&amp;</p>');
+    assert.equal(
+        text(html`<p class="${1n}" data-n="${0}" data-f="${false}" data-u="${undefined}" data-z="${null}"></p>`),
+        '<p class="1" data-n="0" data-f="false" data-u="" data-z=""></p>'
+    );
+});
+
+test('html matches raw-text and handler names case-insensitively', () => {
+    assert.throws(() => html`<SCRIPT>${'alert(1)'}</SCRIPT>`, /script content/);
+    assert.throws(() => html`<Style>${'color:red'}</Style>`, /style content/);
+    assert.throws(() => html`<script type="module">${'alert(1)'}</script>`, /script content/);
+    assert.throws(() => html`<style media="${'all'}">${'color:red'}</style>`, /style content/);
+    assert.equal(text(html`<SCRIPT>fixed</SCRIPT ><p>${'<b>'}</p>`), '<SCRIPT>fixed</SCRIPT ><p>&lt;b&gt;</p>');
+    assert.throws(() => html`<button onclick = "${'alert(1)'}"></button>`, /event-handler attribute onclick/);
+    assert.throws(() => html`<button OnMouseOver='${'alert(1)'}'></button>`, /event-handler attribute onmouseover/);
+    assert.throws(() => html`<iframe SRCDOC="${'<script></script>'}"></iframe>`, /srcdoc/);
+    assert.throws(() => html`<iframe srcdoc = '${'<script></script>'}'></iframe>`, /srcdoc/);
+    assert.throws(() => attributes({OnClick: 'alert(1)'}), /Unsupported HTML attribute name OnClick/);
+    assert.throws(() => attributes({SrcDoc: '<script></script>'}), /srcdoc/);
+});
+
+test('html keeps quoted attribute values containing markup delimiters inside the tag', () => {
+    assert.equal(text(html`<p title="a>b">${'<b>'}</p>`), '<p title="a>b">&lt;b&gt;</p>');
+    assert.equal(text(html`<p title='</script>'>${'<b>'}</p>`), '<p title=\'</script>\'>&lt;b&gt;</p>');
+    assert.throws(() => html`<style title="a>b">${'color:red'}</style>`, /style content/);
+    assert.equal(
+        text(html`<script src="${'/a.js?x="1&y'}"></script><p>${'<b>'}</p>`),
+        '<script src="/a.js?x=&quot;1&amp;y"></script><p>&lt;b&gt;</p>'
+    );
+    assert.equal(
+        text(html`<p>${unsafeHTML('<a title="x>">ok</a>')}${'<i>'}</p>`),
+        '<p><a title="x>">ok</a>&lt;i&gt;</p>'
+    );
+});
+
+test('nested trusted markup must close comments, quotes, tags, and raw-text elements', () => {
+    for (const open of ['<!--', '<a title="', "<a title='", '<a ', '<style>', '<script type="module">']) {
+        assert.throws(() => html`${unsafeHTML(open)}${'x'}`, /ordinary text context/, open);
+    }
+});
+
+test('attributes rejects names that could break attribute syntax and escapes values', () => {
+    for (const name of ['', 'a"b', "a'b", 'a>b', 'a<b', 'a=b', 'a b', '/', '1a']) {
+        assert.throws(() => attributes({[name]: 'x'}), /Unsupported HTML attribute name/, JSON.stringify(name));
+    }
+    assert.throws(() => attributes({title: Symbol('x')}), /Attribute values/);
+    assert.throws(() => attributes({title: () => 'x'}), /Attribute values/);
+    assert.equal(
+        text(html`<input ${attributes({value: '" onfocus="alert(1)', 'data-x': "'", class: ['"a', '<b>']})}>`),
+        '<input value="&quot; onfocus=&quot;alert(1)" data-x="&#39;" class="&quot;a &lt;b&gt;">'
+    );
+    assert.equal(
+        text(html`<input ${attributes({hidden: true, Disabled: true, title: true, selected: false})}>`),
+        '<input hidden Disabled title="true">'
+    );
+});
+
+test('html rejects plain strings at tag and declaration boundaries', () => {
+    assert.throws(() => html`<p ${'hidden'}>`, /must use attributes\(\)/);
+    assert.throws(() => html`<p${'hidden'}>`, /must use attributes\(\)/);
+    assert.throws(() => html`<!doctype ${'html'}>`, /must use attributes\(\)/);
+    assert.throws(() => html`<!${'x'}>`, /attribute boundary/);
+});
+
+test('trusted markup values are frozen and attribute markup is not HTML markup', () => {
+    const output = html`<p>${'safe'}</p>`;
+    assert.throws(() => {output.value = '<script>alert(1)</script>';}, TypeError);
+    assert.equal(text(output), '<p>safe</p>');
+    const attributeMarkup = attributes({title: 'x'});
+    assert.equal(Object.isFrozen(attributeMarkup), true);
+    assert.equal(isHTMLMarkup(attributeMarkup), false);
+    assert.throws(() => html`<p>${[attributeMarkup]}</p>`, /only be interpolated inside an opening tag/);
+});
+
+test('html rejects DOM nodes instead of coercing them to text', t => {
+    const dom = new JSDOM('<main></main>');
+    t.after(() => dom.window.close());
+    const node = dom.window.document.createElement('img');
+    assert.throws(() => html`<p>${node}</p>`, /HTML template interpolations/);
+    assert.throws(() => html`<p>${[node]}</p>`, /HTML template interpolations/);
+    assert.throws(() => html`<p title="${node}"></p>`, /HTML template interpolations/);
 });

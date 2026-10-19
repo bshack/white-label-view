@@ -87,6 +87,7 @@ test('delegation filters events and removes only matching registrations', t => {
     view.element.querySelector('span').dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
     assert.equal(count, 1);
     view.element.dispatchEvent(new window.MouseEvent('click'));
+    assert.equal(count, 1);
     events.off('click', 'a').off('click', 'button', () => {});
     assert.equal(events.listeners.length, 2);
     events.off('click', 'button', callback);

@@ -29,13 +29,13 @@ jobs:
           path: dist
           if-no-files-found: error
           retention-days: 7
-      - run: npm run typecheck
-      - run: npm test
+      # coverage rebuilds dist, typechecks, runs the consumer type checks and every Node test.
       - run: npm run coverage
       - run: npm run audit
-      - run: npm pack --dry-run
+      # dist was just built and tested; skip the prepare script so packing does not rebuild it again.
+      - run: npm pack --dry-run --ignore-scripts
       - name: Create packed package
-        run: npm pack --silent
+        run: npm pack --silent --ignore-scripts
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: packed-package
