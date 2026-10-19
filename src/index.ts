@@ -28,6 +28,13 @@ interface Registration {
     abort: () => void;
 }
 
+type RetainedRegistration = [string, string, DelegatedCallback, AddEventListenerOptions | undefined];
+
+// Registration options needed to re-register a View-lifetime listener on a replacement root.
+const registrationOptions = new WeakMap<Registration, AddEventListenerOptions>();
+// Registrations made while a View had no mounted root; they follow the View across root replacement.
+const lifetimeRegistrations = new WeakSet<Registration>();
+
 function appendError(errors: unknown[], error: unknown) {
     errors.push(error);
 }
@@ -58,6 +65,7 @@ class DelegatedEvents {
         };
         this.scope.addEventListener(type, registered.listener, {capture: registered.capture, passive: settings.passive});
         this.listeners.push(registered);
+        registrationOptions.set(registered, {capture: registered.capture, once, passive: settings.passive, signal: settings.signal});
         registered.signal?.addEventListener('abort', registered.abort, {once: true});
         return this;
     }
@@ -202,9 +210,13 @@ class View {
     /** Release every root-owned resource and preserve all cleanup failures. */
     private releaseRoot() {
         const errors: unknown[] = [];
+        // removeListeners() pairs with a completed addListeners(); failed mounts already rolled it back.
+        const mounted = this.mountedElement !== undefined;
         this.mountedElement = undefined;
         try { this.destroyChildren(); } catch (error) { appendError(errors, error); }
-        try { this.removeListeners(); } catch (error) { appendError(errors, error); }
+        if (mounted) {
+            try { this.removeListeners(); } catch (error) { appendError(errors, error); }
+        }
         try { this.delegated.clear(); } catch (error) { appendError(errors, error); }
         if (errors.length === 1) {throw errors[0];}
         if (errors.length > 1) {throw new AggregateError(errors, 'Unable to release view root');}
@@ -263,10 +275,35 @@ class View {
 
     delegate(scope?: Element) { return new DelegatedEvents(scope || this.element as Element); }
 
+    /** Registrations made before a root is mounted (for example in a constructor) belong to the View. */
+    private claimRegistrations() {
+        if (this.mountedElement === undefined) {
+            // Tolerate prototype-constructed views that never created a delegated registry.
+            for (const registered of this.delegated?.listeners ?? []) {lifetimeRegistrations.add(registered);}
+        }
+    }
+
+    private retainedRegistrations(): RetainedRegistration[] {
+        return this.delegated.listeners
+            .filter(registered => lifetimeRegistrations.has(registered))
+            .map(registered => [registered.type, registered.selector, registered.callback, registrationOptions.get(registered)]);
+    }
+
+    private restoreRegistrations(retained: RetainedRegistration[]) {
+        const delegated = this.delegated;
+        for (const [type, selector, callback, options] of retained) {
+            const count = delegated.listeners.length;
+            delegated.on(type, selector, callback, options);
+            // An aborted signal registers nothing.
+            if (delegated.listeners.length > count) {lifetimeRegistrations.add(delegated.listeners[count]!);}
+        }
+    }
+
     private activateRoot() {
         const bindingWasInitialized = this.modelBindingInitialized;
         this.initializeModelBinding();
         if (this.mountedElement === this.element) {return this;}
+        this.claimRegistrations();
         const errors: unknown[] = [];
         try {
             this.addListeners();
@@ -277,7 +314,11 @@ class View {
             appendError(errors, error);
             this.mountedElement = undefined;
             try { this.removeListeners(); } catch (cleanupError) {appendError(errors, cleanupError);}
-            try { this.delegated.clear(); } catch (cleanupError) {appendError(errors, cleanupError);}
+            try {
+                const retained = this.retainedRegistrations();
+                this.delegated.clear();
+                this.restoreRegistrations(retained);
+            } catch (cleanupError) {appendError(errors, cleanupError);}
             if (!bindingWasInitialized) {
                 try { this.destroyModelBinding(); } catch (cleanupError) {appendError(errors, cleanupError);}
             }
@@ -319,11 +360,18 @@ class View {
             this.renderedTemplate = html;
             return this.activateRoot();
         }
+        this.claimRegistrations();
+        const retained = this.retainedRegistrations();
         this.releaseRoot();
         if (attached) {this.element.parentNode!.replaceChild(root, this.element);}
-        else {this.parentElement.appendChild(root);}
+        else {
+            // An adopted root outside parentElement is still owned; move ownership rather than duplicate it.
+            this.element.parentNode?.removeChild(this.element);
+            this.parentElement.appendChild(root);
+        }
         this.element = root;
         this.delegated = this.delegate();
+        this.restoreRegistrations(retained);
         this.renderedTemplate = html;
         return this.activateRoot();
     }

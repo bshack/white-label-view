@@ -86,9 +86,11 @@ const view = new View({
 }).initialize();
 ```
 
-Normal text and quoted-attribute interpolations are HTML-escaped. Nested `html`` ` results and arrays of tagged-template results compose without double escaping. `null`, `undefined`, and booleans render no text; numbers and bigints render as text.
+Normal text and quoted-attribute interpolations are HTML-escaped. Nested `html`` ` results and arrays of tagged-template results compose without double escaping. In text content, `null`, `undefined`, and booleans render no text. In quoted attribute values, `null` and `undefined` render an empty value and booleans render `true` or `false`; use `attributes()` to omit an attribute or render a boolean attribute by presence. Numbers and bigints render as text in both contexts.
 
-The tag rejects ambiguous or dangerous interpolation locations such as tag names, unquoted attributes, HTML comments, `<script>` bodies, and `<style>` bodies. Objects, functions, symbols, promises, DOM nodes, and other unsupported values also throw instead of being coerced implicitly.
+The tag rejects ambiguous or dangerous interpolation locations such as tag names, unquoted attributes, HTML comments, declarations, `<script>` bodies, and `<style>` bodies. Objects, functions, symbols, promises, DOM nodes, and other unsupported values also throw instead of being coerced implicitly.
+
+Context tracking follows the HTML tokenizer. `<textarea>` and `<title>` content is escaped text: primitive interpolations are allowed, but nested `html`` ` or `unsafeHTML()` markup is rejected because it could end the element. Interpolation inside `<xmp>`, `<iframe>`, `<noembed>`, `<noframes>`, `<noscript>`, and `<plaintext>` content is rejected, as for `<style>`. Markup inside `<noscript>` must parse the same way whether scripting is enabled or disabled. Inside `<svg>` and `<math>`, `<script>`, `<style>`, and raw-text elements reached after HTML integration points or breakout tags are treated as ambiguous: once the tag cannot determine how a browser will tokenize the rest of the template, every later interpolation is rejected.
 
 ### Conditional and boolean attributes
 
@@ -177,7 +179,7 @@ const view = new View({
 
 When the root is attached, View calls `update(element, data)` before requiring a template. Returning `true` means the current DOM handled the render. If it returns `false`, View falls back to the configured template when one exists.
 
-Keep ownership explicit: View owns the adopted root and its lifecycle, not unrelated host-rendered siblings. `destroy()` removes the root it owns, so a host that intends to keep an element after enhancement teardown should structure ownership accordingly.
+Keep ownership explicit: View owns the adopted root and its lifecycle, not unrelated host-rendered siblings. `destroy()` removes the root it owns, so a host that intends to keep an element after enhancement teardown should structure ownership accordingly. Likewise, when an adopted root is not inside `parentElement` and a template render replaces it, View removes the old root from its current parent and inserts the new root into `parentElement` rather than leaving both in the document.
 
 ## Server rendering
 
@@ -233,7 +235,7 @@ When template rendering is used, browser output must resolve to exactly one elem
 
 ## Events and delegated events
 
-Use `addListeners()` when a View owns browser events. For events inside a rendered root, `this.delegated` keeps listener ownership aligned with the View lifecycle and is cleared automatically when the root is replaced or the View is destroyed.
+Use `addListeners()` when a View owns browser events. For events inside a rendered root, `this.delegated` keeps listener ownership aligned with the View lifecycle: registrations made once a root is mounted (including in `addListeners()`) are cleared automatically when the root is replaced or the View is destroyed. Registrations made before the View mounts a root, for example in a constructor or before `initialize()`, belong to the View instead: they are moved to each replacement root and released by `destroy()`.
 
 ```ts
 import View from 'white-label-view';
@@ -296,7 +298,7 @@ For public content, prefer meaningful server-rendered or static initial HTML and
 | `initializeModelBinding()` | Subscribe to model `change` events. | `undefined`. |
 | `destroyModelBinding()` | Release model subscription and queued work, resetting binding state even if external listener removal throws. | `undefined`. |
 | `addListeners()` | Extension hook during root activation after installation/adoption. | The same View by default. |
-| `removeListeners()` | Extension hook before replacement/destruction and during failed-mount rollback. | The same View by default. |
+| `removeListeners()` | Extension hook before a mounted root is replaced or destroyed, and during failed-mount rollback. Not called for a View that never mounted a root. | The same View by default. |
 | `afterMount()` | Extension hook after insertion/adoption and listener setup. | The same View by default. |
 | `destroy()` | Best-effort release of listeners, binding, children, queued work, and DOM root. | The same View after successful cleanup; cleanup failures are reported after remaining cleanup is attempted. |
 

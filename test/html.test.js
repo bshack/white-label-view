@@ -302,7 +302,7 @@ test('attributes rejects names that could break attribute syntax and escapes val
 test('html rejects plain strings at tag and declaration boundaries', () => {
     assert.throws(() => html`<p ${'hidden'}>`, /must use attributes\(\)/);
     assert.throws(() => html`<p${'hidden'}>`, /must use attributes\(\)/);
-    assert.throws(() => html`<!doctype ${'html'}>`, /must use attributes\(\)/);
+    assert.throws(() => html`<!doctype ${'html'}>`, /declaration content/);
     assert.throws(() => html`<!${'x'}>`, /attribute boundary/);
 });
 
