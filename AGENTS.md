@@ -4,6 +4,10 @@ Browser/server rendering, model-driven updates, delegated events, lifecycle clea
 
 Verified against `package.json`, `README.md`, `TEMPLATE_ENGINES.md`, and `.github/workflows/security.yml` on October 19, 2026. Recheck those files when commands or supported environments change.
 
+## Response style
+
+The owner requires concise, neutral, evidence-based responses (October 12, 2026). Do not add personality, enthusiasm, flattery or filler.
+
 ## Code map
 
 - `src/index.ts`: browser View and the `DelegatedEvents` registry.
