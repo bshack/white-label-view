@@ -1,25 +1,32 @@
 import {isHTMLMarkup} from './html.js';
 import type {HTMLMarkup} from './html.js';
 
-/** Data source consumed by the server rendering lifecycle. Observable models use the native EventTarget contract. */
+/**
+ * The data a server View renders. If `get()` exists, its result is passed to the template; otherwise the
+ * model object itself is. A model with `addEventListener()` and `removeEventListener()` is observed: each
+ * `change` event re-renders synchronously.
+ */
 interface ViewModel {
     get?: () => unknown;
     addEventListener?: (event: 'change', callback: EventListener) => unknown;
     removeEventListener?: (event: 'change', callback: EventListener) => unknown;
 }
 
-/** Server settings mirror the portable subset of browser View settings. */
+/** Server View settings: the DOM-free subset of browser View settings. */
 interface ViewSettings {
     model?: object & ViewModel;
+    /** Returns a trusted HTML string or HTMLMarkup. */
     template?: (data: unknown) => string | HTMLMarkup;
 }
 
 /**
- * Server view lifecycle using the same model/template concepts as browser View.
- * DOM nodes, delegated events, focus, and mounting remain browser responsibilities.
+ * Server View: renders model data to an HTML string with the same model, template and child-ownership
+ * concepts as the browser View, without needing `window` or `document`. DOM nodes, delegated events, focus,
+ * mounting and animation-frame batching are browser-only.
  */
 class View {
     declare template?: (data: unknown) => string | HTMLMarkup;
+    /** HTML from the last render; returned by toString(). */
     renderedTemplate?: string;
     modelChangeHandler: () => void;
     modelBindingInitialized = false;
@@ -50,9 +57,14 @@ class View {
         return this.render();
     }
 
+    /** Render the current state and subscribe to the model. Same as render(). */
     initialize() {return this.render();}
 
-    /** Register child ownership so teardown mirrors the browser lifecycle. */
+    /**
+     * Take cleanup ownership of `child`; it is destroyed when this View is destroyed.
+     *
+     * @throws TypeError if ownership would form a cycle or `child` already has another owner.
+     */
     addChild(child: View) {
         for (let ancestor: View | undefined = this; ancestor; ancestor = ancestor.owner) {
             if (ancestor === child) {throw new TypeError('Child view ownership must not contain cycles');}
@@ -78,7 +90,7 @@ class View {
         if (errors.length) {throw new AggregateError(errors, 'Unable to destroy child views');}
     }
 
-    /** Subscribe once when the model exposes the native EventTarget listener contract. */
+    /** Subscribe to the model's `change` event once, if the model has both EventTarget listener methods. */
     initializeModelBinding() {
         if (this.boundModel !== this.model) {this.destroyModelBinding();}
         if (!this.modelBindingInitialized && this.model &&
@@ -90,7 +102,7 @@ class View {
         return this;
     }
 
-    /** Release the model subscription owned by this view. */
+    /** Remove the model subscription. State is reset before removal, so the View stays reusable if it throws. */
     destroyModelBinding() {
         const boundModel = this.boundModel;
         const initialized = this.modelBindingInitialized;
@@ -102,7 +114,12 @@ class View {
         return this;
     }
 
-    /** Render the current template to an HTML string without requiring DOM globals. */
+    /**
+     * Render the template to an HTML string (read it with toString()) and make sure the model is bound.
+     * Without a template, only the model binding is set up.
+     *
+     * @throws TypeError when the template returns something other than a string or HTMLMarkup.
+     */
     render() {
         if (typeof this.template !== 'function') {
             this.initializeModelBinding();
@@ -125,7 +142,12 @@ class View {
     /** Return the most recently rendered HTML. */
     toString() {return this.renderedTemplate ?? '';}
 
-    /** Release owned children and subscriptions; the instance may be initialized again. */
+    /**
+     * Leave the owner, destroy owned children, release the model subscription and clear the output. Every
+     * step is attempted even if one throws; the instance can be initialized again.
+     *
+     * @throws The single cleanup error, or an AggregateError when several steps failed.
+     */
     destroy() {
         const errors: unknown[] = [];
         try {this.owner?.releaseChild(this);} catch (error) {errors.push(error);}

@@ -1,23 +1,33 @@
 import {isHTMLMarkup} from './html.js';
 import type {HTMLMarkup} from './html.js';
 
-/** Data source consumed by the rendering lifecycle. Observable models use the native EventTarget contract. */
+/**
+ * The data a View renders. If `get()` exists, its result is passed to the template and update hook;
+ * otherwise the model object itself is. A model that also has `addEventListener()` and
+ * `removeEventListener()` (the native EventTarget methods) is observed: each `change` event re-renders.
+ */
 interface ViewModel {
     get?: () => unknown;
     addEventListener?: (event: 'change', callback: EventListener) => unknown;
     removeEventListener?: (event: 'change', callback: EventListener) => unknown;
 }
-/** Constructor settings; templates must return exactly one root element. */
+/** Browser View constructor settings. */
 interface ViewSettings {
+    /** Element the View inserts its root into. Without it, render() builds output but mounts nothing. */
     parentElement?: Element;
+    /** Existing element to adopt as the root, such as server-rendered markup. Defaults to a detached <div>. */
     element?: Element;
     model?: object & ViewModel;
+    /** Returns one element, or a trusted HTML string / HTMLMarkup that parses to exactly one element. */
     template?: (data: unknown) => string | Node | HTMLMarkup;
+    /** Updates an attached root in place. Return true if handled; false falls back to the template. */
     update?: (element: Node, data: unknown) => boolean;
     /** Coalesce model changes into one animation frame; manual render() stays synchronous. */
     batchUpdates?: boolean;
 }
+/** Delegated handler; `this` is the element that matched the selector. */
 type DelegatedCallback = (this: Element, event: Event) => unknown;
+/** One delegated listener: the native listener on the scope plus what is needed to remove it. */
 interface Registration {
     type: string;
     selector: string;
@@ -28,17 +38,38 @@ interface Registration {
     abort: () => void;
 }
 
+// The arguments needed to call on() again for a registration: type, selector, callback, options.
+type RetainedRegistration = [string, string, DelegatedCallback, AddEventListenerOptions | undefined];
+
+// Registration options needed to re-register a View-lifetime listener on a replacement root.
+const registrationOptions = new WeakMap<Registration, AddEventListenerOptions>();
+// Registrations made while a View had no mounted root. They belong to the View rather than to one root, so
+// they are re-registered on every replacement root and only released by destroy().
+const lifetimeRegistrations = new WeakSet<Registration>();
+
 function appendError(errors: unknown[], error: unknown) {
     errors.push(error);
 }
 
-/** Native event delegation scoped to a view root. */
+/**
+ * Event delegation on one scope element. Each registration adds one native listener to the scope; it calls
+ * the callback when the nearest element matching the selector (starting at the event target) is the scope
+ * itself or inside it.
+ */
 class DelegatedEvents {
+    /** Active registrations, in registration order. */
     listeners: Registration[] = [];
 
     constructor(public scope: Element) {}
 
-    /** Register a matching listener. once is consumed only by a matching event. */
+    /**
+     * Listen for `type` events whose target is inside an element matching `selector`.
+     *
+     * @param options - `true`/`false` for capture, or listener options. `once` removes the listener after the
+     *   first event that matches the selector (non-matching events do not count). An already aborted `signal`
+     *   registers nothing; aborting it later removes the listener.
+     * @returns This registry, for chaining.
+     */
     on(type: string, selector: string, callback: DelegatedCallback, options: boolean | AddEventListenerOptions = {}) {
         const settings = typeof options === 'boolean' ? {capture: options} : options;
         if (settings.signal?.aborted) {return this;}
@@ -58,11 +89,17 @@ class DelegatedEvents {
         };
         this.scope.addEventListener(type, registered.listener, {capture: registered.capture, passive: settings.passive});
         this.listeners.push(registered);
+        registrationOptions.set(registered, {capture: registered.capture, once, passive: settings.passive, signal: settings.signal});
         registered.signal?.addEventListener('abort', registered.abort, {once: true});
         return this;
     }
 
-    /** Remove matching registrations; optionally restrict removal to a capture phase. */
+    /**
+     * Remove registrations for `type`. Omitted `selector` or `callback` matches any; `options` (or a boolean)
+     * restricts removal to the capture or bubble phase.
+     *
+     * @returns This registry, for chaining.
+     */
     off(type: string, selector?: string, callback?: DelegatedCallback, options?: boolean | EventListenerOptions) {
         const capture = typeof options === 'boolean' ? options : options?.capture;
         this.listeners = this.listeners.filter(registered => {
@@ -86,7 +123,7 @@ class DelegatedEvents {
         registered.signal?.removeEventListener('abort', registered.abort);
     }
 
-    /** Remove every registration in one pass, including its abort callback. */
+    /** Remove every registration, including abort-signal listeners. Returns this registry. */
     clear() {
         const registrations = this.listeners;
         this.listeners = [];
@@ -95,20 +132,29 @@ class DelegatedEvents {
     }
 }
 
-/** Render a model through a template and release owned listeners and child views on teardown. */
+/**
+ * Browser View: renders model data into one root element inside `parentElement`, or adopts an existing
+ * element, and owns that root's lifecycle (listeners, model subscription, child views, teardown).
+ */
 class View {
     parentElement?: Element;
     element: Node;
     declare template?: (data: unknown) => string | Node | HTMLMarkup;
-    /** Override to update the attached root in place; false uses the template fallback. */
+    /**
+     * Update the attached root in place. Return true when the DOM is up to date, or false to render the
+     * template instead. Overridden by subclasses or the `update` setting.
+     */
     update(_element: Node, _data: unknown): boolean { return false; }
     batchUpdates: boolean;
     modelChangeHandler: () => void;
     modelBindingInitialized = false;
+    /** HTML of the last template render, used to skip re-parsing identical output. */
     renderedTemplate?: string;
+    /** Delegated events scoped to the current root. See claimRegistrations() for ownership rules. */
     delegated: DelegatedEvents;
     private currentModel?: object & ViewModel;
     private boundModel?: object & ViewModel;
+    // The root whose addListeners()/afterMount() completed; undefined until a root mounts successfully.
     private mountedElement?: Node;
     private pendingFrame?: number;
     private frameWindow?: Window;
@@ -145,9 +191,13 @@ class View {
         return this.render();
     }
 
+    /** Render (or adopt) the current state and start the lifecycle. Same as render(). */
     initialize() { return this.render(); }
 
-    /** Coalesce automatic updates when enabled, falling back to synchronous rendering without RAF. */
+    /**
+     * Render now, or with `batchUpdates` schedule one render for the next animation frame. Falls back to a
+     * synchronous render when the document has no requestAnimationFrame.
+     */
     requestRender() {
         const window = this.element.ownerDocument?.defaultView;
         if (!this.batchUpdates || !window?.requestAnimationFrame) {return this.render();}
@@ -172,7 +222,12 @@ class View {
         }
     }
 
-    /** Register ownership without mounting the child. Owned children are destroyed on root replacement. */
+    /**
+     * Take cleanup ownership of `child` without mounting it. Owned children are destroyed when this View's
+     * root is replaced or the View is destroyed.
+     *
+     * @throws TypeError if ownership would form a cycle or `child` already has another owner.
+     */
     addChild(child: View) {
         for (let ancestor: View | undefined = this; ancestor; ancestor = ancestor.owner) {
             if (ancestor === child) {throw new TypeError('Child view ownership must not contain cycles');}
@@ -199,18 +254,29 @@ class View {
         if (errors.length) {throw new AggregateError(errors, 'Unable to destroy child views');}
     }
 
-    /** Release every root-owned resource and preserve all cleanup failures. */
+    /** Release everything tied to the current root (children, listeners), attempting every step before throwing. */
     private releaseRoot() {
         const errors: unknown[] = [];
+        // removeListeners() pairs with a completed addListeners(); failed mounts already rolled it back.
+        const mounted = this.mountedElement !== undefined;
         this.mountedElement = undefined;
         try { this.destroyChildren(); } catch (error) { appendError(errors, error); }
-        try { this.removeListeners(); } catch (error) { appendError(errors, error); }
+        if (mounted) {
+            try { this.removeListeners(); } catch (error) { appendError(errors, error); }
+        }
         try { this.delegated.clear(); } catch (error) { appendError(errors, error); }
         if (errors.length === 1) {throw errors[0];}
         if (errors.length > 1) {throw new AggregateError(errors, 'Unable to release view root');}
     }
 
-    /** Remove the owned root from its actual parent, including nested roots. May be initialized again. */
+    /**
+     * Cancel queued renders, leave the owner, destroy children, call removeListeners() (only if a root was
+     * mounted), release the model subscription, and remove the root from wherever it is in the document.
+     * Every step is attempted even if an earlier one throws. The View then holds a fresh detached root and
+     * can be initialized again.
+     *
+     * @throws The single cleanup error, or an AggregateError when several steps failed.
+     */
     destroy() {
         const errors: unknown[] = [];
         const ownerDocument = this.element.ownerDocument!;
@@ -230,7 +296,7 @@ class View {
         return this;
     }
 
-    /** Subscribe once when the model exposes the native EventTarget listener contract. */
+    /** Subscribe to the model's `change` event once, if the model has both EventTarget listener methods. */
     initializeModelBinding() {
         if (this.boundModel !== this.model) {this.destroyModelBinding();}
         const model = this.model;
@@ -242,7 +308,7 @@ class View {
         }
     }
 
-    /** Remove the model subscription and cancel queued rendering. */
+    /** Remove the model subscription and cancel any queued render. State is reset even if removal throws. */
     destroyModelBinding() {
         this.cancelRender();
         const boundModel = this.boundModel;
@@ -254,19 +320,59 @@ class View {
         }
     }
 
-    /** Called once for each mounted root, including adopted existing markup. */
+    /** Hook: called once for each newly mounted root, including adopted markup. Add listeners here. */
     addListeners() { return this; }
-    /** Called before root replacement or destruction and during failed-mount rollback. */
+    /**
+     * Hook: called before a mounted root is replaced or destroyed, and when a mount fails part way. Never
+     * called for a View that has not mounted a root. Must tolerate setup that did not finish.
+     */
     removeListeners() { return this; }
-    /** Called after insertion/adoption and listener setup; safe for focus and parent-relative measurement. */
+    /** Hook: called after the root is in the document and addListeners() ran; safe for focus and measurement. */
     afterMount() { return this; }
 
+    /** Create a separate delegated-event registry on `scope` (default: the current root). The caller owns it. */
     delegate(scope?: Element) { return new DelegatedEvents(scope || this.element as Element); }
 
+    /**
+     * Before any root has mounted, mark existing delegated registrations (for example from a constructor) as
+     * View-lifetime so they move to each replacement root. Registrations made after mounting, including in
+     * addListeners(), belong to that root and are cleared when it is replaced.
+     */
+    private claimRegistrations() {
+        if (this.mountedElement === undefined) {
+            // Tolerate prototype-constructed views that never created a delegated registry.
+            for (const registered of this.delegated?.listeners ?? []) {lifetimeRegistrations.add(registered);}
+        }
+    }
+
+    /** Snapshot the View-lifetime registrations so they can be re-registered on a new root. */
+    private retainedRegistrations(): RetainedRegistration[] {
+        return this.delegated.listeners
+            .filter(registered => lifetimeRegistrations.has(registered))
+            .map(registered => [registered.type, registered.selector, registered.callback, registrationOptions.get(registered)]);
+    }
+
+    /** Re-register View-lifetime registrations on the current registry and keep them marked as such. */
+    private restoreRegistrations(retained: RetainedRegistration[]) {
+        const delegated = this.delegated;
+        for (const [type, selector, callback, options] of retained) {
+            const count = delegated.listeners.length;
+            delegated.on(type, selector, callback, options);
+            // An aborted signal registers nothing.
+            if (delegated.listeners.length > count) {lifetimeRegistrations.add(delegated.listeners[count]!);}
+        }
+    }
+
+    /**
+     * Make sure the model is bound and, for a root that has not mounted yet, run addListeners() then
+     * afterMount(). If either throws, undo the mount (removeListeners(), drop root-owned registrations, and
+     * unbind the model if this call bound it) so a later render can retry, then rethrow.
+     */
     private activateRoot() {
         const bindingWasInitialized = this.modelBindingInitialized;
         this.initializeModelBinding();
         if (this.mountedElement === this.element) {return this;}
+        this.claimRegistrations();
         const errors: unknown[] = [];
         try {
             this.addListeners();
@@ -277,7 +383,11 @@ class View {
             appendError(errors, error);
             this.mountedElement = undefined;
             try { this.removeListeners(); } catch (cleanupError) {appendError(errors, cleanupError);}
-            try { this.delegated.clear(); } catch (cleanupError) {appendError(errors, cleanupError);}
+            try {
+                const retained = this.retainedRegistrations();
+                this.delegated.clear();
+                this.restoreRegistrations(retained);
+            } catch (cleanupError) {appendError(errors, cleanupError);}
             if (!bindingWasInitialized) {
                 try { this.destroyModelBinding(); } catch (cleanupError) {appendError(errors, cleanupError);}
             }
@@ -286,7 +396,14 @@ class View {
         }
     }
 
-    /** Render synchronously, preserving equal roots while ensuring their lifecycle is initialized. */
+    /**
+     * Render synchronously:
+     * 1. If the root is attached and update() returns true, keep the root.
+     * 2. Otherwise render the template. Identical HTML, or an equal DOM tree, keeps the existing root.
+     * 3. Otherwise replace the root (or insert it into parentElement) and mount the new one.
+     *
+     * @throws TypeError when template output is not exactly one element; the previous root is kept.
+     */
     render() {
         this.cancelRender();
         const attached = this.parentElement?.contains(this.element);
@@ -319,11 +436,18 @@ class View {
             this.renderedTemplate = html;
             return this.activateRoot();
         }
+        this.claimRegistrations();
+        const retained = this.retainedRegistrations();
         this.releaseRoot();
         if (attached) {this.element.parentNode!.replaceChild(root, this.element);}
-        else {this.parentElement.appendChild(root);}
+        else {
+            // An adopted root outside parentElement is still owned; move ownership rather than duplicate it.
+            this.element.parentNode?.removeChild(this.element);
+            this.parentElement.appendChild(root);
+        }
         this.element = root;
         this.delegated = this.delegate();
+        this.restoreRegistrations(retained);
         this.renderedTemplate = html;
         return this.activateRoot();
     }

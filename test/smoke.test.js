@@ -35,13 +35,18 @@ test('model binding removes only the view listener', function() {
 test('render skips unchanged string output before parsing or replacing DOM', function() {
     const View = require('../dist/index');
     const view = Object.create(View.prototype);
-    view.template = () => '<p>unchanged</p>';
+    const element = {};
+    let templateCalls = 0;
+    view.template = () => {templateCalls++; return '<p>unchanged</p>';};
     view.model = {};
     view.renderedTemplate = '<p>unchanged</p>';
-    view.element = {};
-    view.parentElement = {contains: (element) => element === view.element};
+    view.element = element;
+    view.parentElement = {contains: (candidate) => candidate === view.element};
 
     assert.equal(view.render(), view);
+    assert.equal(templateCalls, 1);
+    assert.equal(view.element, element);
+    assert.equal(view.renderedTemplate, '<p>unchanged</p>');
 });
 
 test('native event delegation handles nested targets and removes the registered listener', function() {

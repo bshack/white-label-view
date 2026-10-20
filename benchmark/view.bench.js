@@ -14,7 +14,7 @@ function measure(name, iterations, callback) {
     const samples = [];
     for (let round = 0; round < rounds; round += 1) {
         const start = performance.now();
-        for (let iteration = 0; iteration < iterations; iteration += 1) callback(iteration);
+        for (let iteration = 0; iteration < iterations; iteration += 1) {callback(iteration);}
         samples.push(performance.now() - start);
     }
     return {operation: name, iterations, milliseconds: Number(median(samples).toFixed(2))};
