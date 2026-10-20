@@ -110,7 +110,8 @@ The tag reads the template's fixed text the way a browser's HTML tokenizer would
 Markup counts as ambiguous when its meaning depends on something the template cannot show, for example:
 
 - `<script>` or `<style>` inside `<svg>`/`<math>`, or any raw-text element (such as `<textarea>`) after an SVG/MathML integration point like `<foreignObject>` or a tag such as `<p>` that can leave foreign content;
-- `<noscript>` content that would end in a different place with scripting turned off.
+- `<noscript>` content that would end in a different place with scripting turned off;
+- a raw-text element other than `<script>` or `<textarea>` (such as `<title>` or `<style>`) inside an open `<select>`, because older parsers ignore it there and read its content as markup. Nested markup interpolated inside a `<select>` is checked in that context, and nested markup may not leave a `<select>` open.
 
 A `<script>` that contains `<!--<script` stays open to the end of the template, so later interpolations are rejected as script content. A `<` that does not start a tag is ordinary text (`1 < 2 ${value}` works), and `<!-->` and `<!--->` are complete empty comments.
 

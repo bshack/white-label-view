@@ -69,6 +69,26 @@ test('attributes() is rejected where the insertion itself would change how the t
     assert.equal(text(html`<a${value}><svg><style></style></svg>`), '<a title="t"><svg><style></style></svg>');
 });
 
+test('raw-text elements inside select are ambiguous because parsers disagree on select content', () => {
+    // Older parsers ignore <title>/<style>/<xmp>/... inside <select>, so their content is read as markup.
+    assert.throws(() => html`<select><title><input ${payload}>`, /ambiguous/);
+    assert.throws(() => html`<select><option>a</option><style><input title="</style>" x=${payload}>`, /ambiguous/);
+    assert.throws(() => html`<select><xmp></xmp><p>${payload}</p>`, /ambiguous/);
+    assert.throws(() => html`<select><noscript></noscript>${payload}`, /ambiguous/);
+    assert.throws(() => html`<noscript><select></noscript><p>${payload}</p>`, /ambiguous/);
+    // Nested markup is checked in the select context it lands in, and may not leave a select open.
+    assert.throws(() => html`<select>${html`<title><input ${payload}></title>`}</select>`, /ordinary text context/);
+    assert.throws(() => html`${unsafeHTML('<select>')}<title><input ${payload}>`, /ordinary text context/);
+    assert.throws(() => html`${html`<select>`}<title><input ${payload}>`, /ordinary text context/);
+    // Script and textarea are raw text in every parser; </select> ends the select context.
+    assert.equal(text(html`<select><script></script><option>${'<i>'}</option></select>`), '<select><script></script><option>&lt;i&gt;</option></select>');
+    assert.equal(text(html`<select></select><textarea>${'<i>'}</textarea>`), '<select></select><textarea>&lt;i&gt;</textarea>');
+    assert.equal(text(html`<select><textarea>${'<i>'}</textarea>`), '<select><textarea>&lt;i&gt;</textarea>');
+    assert.equal(text(html`<select></select><title>${'<i>'}</title>`), '<select></select><title>&lt;i&gt;</title>');
+    assert.equal(text(html`<select>${html`<option>${'a'}</option>`}</select>`), '<select><option>a</option></select>');
+    assert.equal(text(html`<svg><select></select></svg><title>${'t'}</title>`), '<svg><select></select></svg><title>t</title>');
+});
+
 test('RCDATA elements escape text and do not track tags until their end tag', () => {
     assert.equal(
         text(html`<textarea><script></textarea><p>${'<b>'}</p>`),

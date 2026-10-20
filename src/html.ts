@@ -155,6 +155,12 @@ interface ParseState {
      * the interpolations that set it.
      */
     boundary: number;
+    /**
+     * A <select> start tag was seen and no </select> since. Browsers disagree on what a select may contain:
+     * older parsers ignore most start tags there, including raw-text elements such as <title> and <style>,
+     * while newer ones parse them normally, so entering raw text inside a select is AMBIGUOUS.
+     */
+    select: boolean;
     /** Open SVG/MathML elements, while the subtree is known to contain only foreign elements. */
     foreign: string[];
     /** "svg" or "math": the outermost open foreign element, which picks the integration-point list. */
@@ -185,6 +191,8 @@ interface InterpolationPlan {
     trimAttributeSpace: boolean;
     /** The interpolation sits inside SVG/MathML, so nested markup is re-checked as foreign content. */
     foreign: boolean;
+    /** The interpolation may sit inside a <select>, so nested markup is re-checked in that context. */
+    select?: boolean;
     /** RCDATA element name, or the rejection message. */
     detail: string;
 }
@@ -266,10 +274,10 @@ function scalar(value: unknown, attribute = false): string {
  * @param foreign - The position is inside SVG/MathML.
  * @param rcdata - Name of the enclosing <textarea>/<title>, or '' outside RCDATA.
  */
-function renderTextValue(value: unknown, foreign: boolean, rcdata: string): string {
+function renderTextValue(value: unknown, foreign: boolean, rcdata: string, select: boolean): string {
     if (isHTMLMarkup(value)) {
         if (rcdata) {throw new TypeError(`Nested HTML markup is not supported inside ${rcdata} content`);}
-        assertContextPreservingMarkup(value, foreign);
+        assertContextPreservingMarkup(value, foreign, select);
         return value.value;
     }
     if (isAttributeMarkup(value)) {throw new TypeError('attributes() may only be interpolated inside an opening tag');}
@@ -280,8 +288,8 @@ function renderTextValue(value: unknown, foreign: boolean, rcdata: string): stri
  * Render a text-position value, flattening nested arrays in order. Uses an explicit stack instead of
  * recursion so deeply nested arrays cannot overflow the call stack, and throws on cyclic arrays.
  */
-function renderText(value: unknown, foreign: boolean, rcdata: string): string {
-    if (!Array.isArray(value)) {return renderTextValue(value, foreign, rcdata);}
+function renderText(value: unknown, foreign: boolean, rcdata: string, select = false): string {
+    if (!Array.isArray(value)) {return renderTextValue(value, foreign, rcdata, select);}
     const activeArrays = new WeakSet<object>();
     // An {array} entry marks the end of that array, so it can leave the cycle-detection set.
     const stack: Array<{value: unknown} | {array: unknown[]}> = [{value}];
@@ -302,7 +310,7 @@ function renderText(value: unknown, foreign: boolean, rcdata: string): string {
             }
             continue;
         }
-        rendered += renderTextValue(current, foreign, rcdata);
+        rendered += renderTextValue(current, foreign, rcdata, select);
     }
     return rendered;
 }
@@ -400,7 +408,7 @@ export function unsafeHTML(value: string): HTMLMarkup {
 function createState(foreignUncertain: boolean): ParseState {
     return {
         state: DATA, tagName: '', endTag: false, selfClosing: false, attributeName: '', rawTag: '', rawKind: 'rawtext',
-        rawStart: 0, scriptEscape: 0, boundary: 0, foreign: [], foreignRoot: '', foreignUncertain
+        rawStart: 0, scriptEscape: 0, boundary: 0, select: false, foreign: [], foreignRoot: '', foreignUncertain
     };
 }
 
@@ -470,6 +478,7 @@ function emitTag(state: ParseState, next: number) {
     state.state = DATA;
     state.boundary = 0;
     const foreign = state.foreign;
+    if (name === 'select' && (!foreign.length || state.foreignUncertain)) {state.select = !state.endTag;}
     if (state.endTag) {
         if (foreign.length && !state.foreignUncertain) {
             // </p> and </br> are handled as HTML even inside foreign content.
@@ -508,6 +517,12 @@ function emitTag(state: ParseState, next: number) {
         return;
     }
     const rawKind = rawTextElements.get(name);
+    // Inside a select only <script> (handled as in <head>) and <textarea> (which closes the select) are
+    // read as raw text by every parser.
+    if (rawKind && state.select && rawKind !== 'script' && name !== 'textarea') {
+        state.state = AMBIGUOUS;
+        return;
+    }
     if (rawKind) {
         state.state = RAW_TEXT;
         state.rawTag = name;
@@ -589,7 +604,7 @@ function rawTextEnd(state: ParseState, source: string, index: number): number {
 function parsesAsText(content: string): boolean {
     const shadow = createState(false);
     advance(shadow, content);
-    return shadow.state === DATA && shadow.foreign.length === 0 && !shadow.foreignUncertain;
+    return shadow.state === DATA && shadow.foreign.length === 0 && !shadow.foreignUncertain && !shadow.select;
 }
 
 /**
@@ -865,14 +880,16 @@ function advance(state: ParseState, source: string) {
  * open tag, comment, raw-text element or SVG/MathML element. A pass is remembered for plain HTML positions
  * so the same markup is not scanned twice.
  */
-function assertContextPreservingMarkup(value: HTMLMarkup, foreign: boolean) {
-    if (!foreign && htmlMarkupValues.get(value)) {return;}
+function assertContextPreservingMarkup(value: HTMLMarkup, foreign: boolean, select: boolean) {
+    const plain = !foreign && !select;
+    if (plain && htmlMarkupValues.get(value)) {return;}
     const state = createState(foreign);
+    state.select = select;
     advance(state, value.value);
-    if (state.state !== DATA || state.foreign.length > 0 || (!foreign && state.foreignUncertain)) {
+    if (state.state !== DATA || state.foreign.length > 0 || (!foreign && state.foreignUncertain) || (!select && state.select)) {
         throw new TypeError('Nested HTML markup must end in ordinary text context');
     }
-    if (!foreign) {htmlMarkupValues.set(value, true);}
+    if (plain) {htmlMarkupValues.set(value, true);}
 }
 
 function reject(message: string): InterpolationPlan {
@@ -889,7 +906,7 @@ const ambiguousRejection = reject('HTML interpolation is not supported after mar
 function planInterpolation(state: ParseState, literal: string): InterpolationPlan {
     switch (state.state) {
     case DATA:
-        return {kind: TEXT, trimAttributeSpace: false, foreign: inForeignContent(state), detail: ''};
+        return {kind: TEXT, trimAttributeSpace: false, foreign: inForeignContent(state), select: state.select, detail: ''};
     case RAW_TEXT:
         return state.rawKind === 'rcdata'
             ? {kind: RCDATA, trimAttributeSpace: false, foreign: false, detail: state.rawTag}
@@ -957,7 +974,7 @@ function compileTemplate(literals: readonly string[], immutable: boolean): Compi
         plans.push(plan);
     }
     advanceLiteral(literals[last]!);
-    const contextPreserving = state.state === DATA && !inForeignContent(state);
+    const contextPreserving = state.state === DATA && !inForeignContent(state) && !state.select;
     return {literals, plans, contextPreserving, immutable};
 }
 
@@ -982,7 +999,7 @@ function hasImmutableLiterals(strings: readonly unknown[]): boolean {
 function renderInterpolation(value: unknown, plan: InterpolationPlan): string {
     switch (plan.kind) {
     case TEXT:
-        return renderText(value, plan.foreign, '');
+        return renderText(value, plan.foreign, '', plan.select);
     case RCDATA:
         return renderText(value, false, plan.detail);
     case QUOTED:
