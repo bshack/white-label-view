@@ -294,7 +294,7 @@ Model binding is one-way: model changes trigger rendering; form input is not aut
 
 Observable models use the native EventTarget contract and provide both `addEventListener()` and `removeEventListener()` so View can subscribe to and release `change`. `setModel(nextModel)` moves the binding and renders immediately.
 
-Set `batchUpdates: true` in Browser View to coalesce model-driven renders into one `requestAnimationFrame`. Manual `render()` remains synchronous. Server View always renders model changes synchronously.
+Set `batchUpdates: true` in Browser View to coalesce model-driven renders into one `requestAnimationFrame`. Manual `render()` remains synchronous. Server View always renders model changes synchronously, once per `change` event; to render once after several writes, coalesce them in the model (see [Coalescing several updates](https://github.com/bshack/white-label-model#coalescing-several-updates) in the Model README).
 
 ## Child ownership
 
