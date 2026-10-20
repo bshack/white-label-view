@@ -95,6 +95,8 @@ const RAW_TEXT = 16;
  * the rest of the template is not tracked and every later interpolation is rejected.
  */
 const AMBIGUOUS = 17;
+/** ParseState.boundary value: the literal after an attributes() insertion showed the insertion was unsafe. */
+const BOUNDARY_VIOLATED = -1;
 
 /**
  * How a raw-text element's content is read:
@@ -149,6 +151,8 @@ interface ParseState {
     /**
      * Set to TAG_NAME or AFTER_ATTRIBUTE_NAME after an attributes() interpolation in that state. The next
      * literal's first characters decide whether the insertion was safe; see advance() and AFTER_ATTRIBUTE_NAME.
+     * advance() sets it to BOUNDARY_VIOLATED when they show it was not, and compileTemplate() then rejects
+     * the interpolations that set it.
      */
     boundary: number;
     /** Open SVG/MathML elements, while the subtree is known to contain only foreign elements. */
@@ -641,7 +645,11 @@ function advance(state: ParseState, source: string) {
     if (state.boundary === TAG_NAME && length) {
         // "<name${attributes}x" parses as one tag name when the insertion is empty and two tokens otherwise.
         const code = source.charCodeAt(0);
-        if (!isWhitespace(code) && code !== 47 && code !== 62) {state.state = AMBIGUOUS;}
+        if (!isWhitespace(code) && code !== 47 && code !== 62) {
+            state.state = AMBIGUOUS;
+            state.boundary = BOUNDARY_VIOLATED;
+            return;
+        }
         state.boundary = 0;
     }
     while (index < length) {
@@ -736,7 +744,8 @@ function advance(state: ParseState, source: string) {
             if (code === 61 && state.boundary) {
                 // "name ${attributes}=" assigns to name only when the insertion is empty.
                 state.state = AMBIGUOUS;
-                break;
+                state.boundary = BOUNDARY_VIOLATED;
+                return;
             }
             state.boundary = 0;
             if (code === 47) {
@@ -901,10 +910,13 @@ function planInterpolation(state: ParseState, literal: string): InterpolationPla
         state.boundary = TAG_NAME;
         return {kind: ATTRIBUTES, trimAttributeSpace: false, foreign: false, detail: ''};
     case AFTER_ATTRIBUTE_NAME:
+        // End tags carry no attributes.
+        if (state.endTag) {return attributeBoundaryRejection;}
         state.boundary = AFTER_ATTRIBUTE_NAME;
         return {kind: ATTRIBUTES, trimAttributeSpace: trailingHTMLWhitespace.test(literal), foreign: false, detail: ''};
     case BEFORE_ATTRIBUTE_NAME:
     case AFTER_QUOTED:
+        if (state.endTag) {return attributeBoundaryRejection;}
         // An inserted complete attribute leaves the tokenizer in an equivalent state for the next literal.
         return {kind: ATTRIBUTES, trimAttributeSpace: trailingHTMLWhitespace.test(literal), foreign: false, detail: ''};
     case COMMENT:
@@ -923,16 +935,28 @@ function planInterpolation(state: ParseState, literal: string): InterpolationPla
 function compileTemplate(literals: readonly string[], immutable: boolean): CompiledTemplate {
     const state = createState(false);
     const plans: InterpolationPlan[] = [];
+    // attributes() interpolations whose safety the next non-empty literal still has to confirm.
+    let unconfirmed: number[] = [];
+    const advanceLiteral = (literal: string) => {
+        advance(state, literal);
+        if (state.boundary === BOUNDARY_VIOLATED) {
+            // The insertion itself would change how the tag is read, so reject it rather than only later ones.
+            for (const index of unconfirmed) {plans[index] = attributeBoundaryRejection;}
+            state.boundary = 0;
+        }
+        if (!state.boundary) {unconfirmed = [];}
+    };
     const last = literals.length - 1;
     for (let index = 0; index < last; index += 1) {
         const literal = literals[index]!;
-        advance(state, literal);
+        advanceLiteral(literal);
         const plan = planInterpolation(state, literal);
         // A rejected interpolation always throws, so later literals never need precise tracking.
         if (plan.kind === REJECT) {state.state = AMBIGUOUS;}
+        if (state.boundary) {unconfirmed.push(index);}
         plans.push(plan);
     }
-    advance(state, literals[last]!);
+    advanceLiteral(literals[last]!);
     const contextPreserving = state.state === DATA && !inForeignContent(state);
     return {literals, plans, contextPreserving, immutable};
 }

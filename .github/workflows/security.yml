@@ -31,6 +31,10 @@ jobs:
           retention-days: 7
       # coverage rebuilds dist, typechecks, runs the consumer type checks and every Node test.
       - run: npm run coverage
+      # Short benchmark against benchmark/baseline.json; fails only beyond 3x the baseline or on a counter change.
+      - run: node benchmark/ci.bench.js
+      # Short differential fuzz of the html tag against parse5 (fixed seed, so failures reproduce locally).
+      - run: node scripts/fuzz-html.mjs --count=5000 --seed=1
       - run: npm run audit
       # dist was just built and tested; skip the prepare script so packing does not rebuild it again.
       - run: npm pack --dry-run --ignore-scripts
@@ -57,6 +61,22 @@ jobs:
               typeof html.html !== 'function' || typeof html.attributes !== 'function' ||
               typeof html.unsafeHTML !== 'function') process.exit(1);
           NODE
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.21.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
 
   minimum-node-runtime:
     runs-on: ubuntu-latest

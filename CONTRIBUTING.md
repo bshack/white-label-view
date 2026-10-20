@@ -11,9 +11,15 @@ npm ci --ignore-scripts
 npm run lint && npm run coverage && npm run audit
 ```
 
-`npm run coverage` builds and typechecks the source, runs the consumer type checks and every Node test, and enforces 100% coverage per implementation file. While iterating, `npm run build && node --test test/<file>.test.js` runs one test file. `npm pack --dry-run --ignore-scripts` previews the published files.
+`npm run coverage` builds and typechecks the source, runs the consumer type checks and every Node test, and enforces 100% coverage per implementation file. While iterating, `npm run build && node --test test/<file>.test.js` runs one test file. `npm pack --dry-run --ignore-scripts` previews the published files. Lint covers the tests, benchmarks, integration fixtures, and scripts as well as `src/`.
 
-The build rewrites the tracked `dist/` directory. Edit `src/*.ts` only, and leave regenerated `dist/` out of a pull request unless the change is a release.
+Outside the gate, and also run in CI:
+
+- `npm run test:browser` runs Playwright checks in real Chromium (run `npx playwright install chromium` once, or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to an installed Chromium).
+- `npm run fuzz -- [--count=N] [--seed=S|random]` fuzzes the `html` tag against `parse5`; run it after changing `src/html.ts`. A failure prints the seed and a minimized template to turn into a regression test.
+- `npm run bench:ci` compares a short benchmark against `benchmark/baseline.json`. When an intended change moves the numbers, refresh it with `npm run bench:ci -- --update` and commit the result.
+
+`dist/` is build output and is not tracked (it is in `.gitignore`); `npm run build` regenerates it, and `prepare` builds it for git installs. Edit `src/*.ts` only.
 
 ## Pull requests
 

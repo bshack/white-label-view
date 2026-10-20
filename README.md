@@ -99,6 +99,8 @@ The tag reads the template's fixed text the way a browser's HTML tokenizer would
 | Quoted attribute value | `title="${value}"`, `title='${value}'` | **Escaped** primitives. `null`/`undefined` render an empty value; booleans render `true`/`false`. Arrays and markup are rejected. |
 | Quoted `on*` handler or `srcdoc` value | `onclick="${value}"` | **Rejected.** |
 | Opening tag, at an attribute boundary | `<input ${attributes({…})}>`, `<input${attributes({…})}>`, `class="a"${attributes({…})}` | Only `attributes()` results, `null`, `undefined`, or `false`. Strings and other values are rejected. |
+| Opening tag, where the insertion would change how the tag reads | `<a${attributes({…})}b>`, `<a b ${attributes({…})}=c>` | **Rejected**, even for `null`/`undefined`/`false`: an empty insertion would join the tag name or assign `=c` to `b`. |
+| End tag | `</a ${attributes({…})}>` | **Rejected.** End tags carry no attributes. |
 | Tag name, attribute name, unquoted value | `<${tag}>`, `title=${value}` | **Rejected.** |
 | Comment, DOCTYPE, or other `<!…>` / `<?…>` declaration | `<!-- ${value} -->`, `<!doctype ${value}>` | **Rejected.** |
 | `<script>`, `<style>`, `<xmp>`, `<iframe>`, `<noembed>`, `<noframes>`, `<noscript>`, or `<plaintext>` content | `<style>${value}</style>` | **Rejected.** |
@@ -108,8 +110,7 @@ The tag reads the template's fixed text the way a browser's HTML tokenizer would
 Markup counts as ambiguous when its meaning depends on something the template cannot show, for example:
 
 - `<script>` or `<style>` inside `<svg>`/`<math>`, or any raw-text element (such as `<textarea>`) after an SVG/MathML integration point like `<foreignObject>` or a tag such as `<p>` that can leave foreign content;
-- `<noscript>` content that would end in a different place with scripting turned off;
-- an `attributes()` insertion whose meaning depends on the next character, such as `<a${attributes({…})}b>` or `<a b ${attributes({…})}=c>`.
+- `<noscript>` content that would end in a different place with scripting turned off.
 
 A `<script>` that contains `<!--<script` stays open to the end of the template, so later interpolations are rejected as script content. A `<` that does not start a tag is ordinary text (`1 < 2 ${value}` works), and `<!-->` and `<!--->` are complete empty comments.
 
@@ -371,9 +372,9 @@ npm ci --ignore-scripts
 npm run lint && npm run coverage && npm run audit
 ```
 
-`npm run coverage` builds (which typechecks), runs the consumer type checks and every Node test, and enforces 100% statements, branches, functions, and lines per implementation file, so `npm run typecheck` and `npm test` need no separate run. `npm run benchmark` measures render and tagged-template performance. CI also checks the minimum supported Node version, installs the packed package with npm, Yarn, and pnpm, and runs the third-party template-engine matrix.
+`npm run coverage` builds (which typechecks), runs the consumer type checks and every Node test, and enforces 100% statements, branches, functions, and lines per implementation file, so `npm run typecheck` and `npm test` need no separate run. `npm run benchmark` measures render and tagged-template performance, and `npm run bench:ci` runs a short version against `benchmark/baseline.json`. `npm run test:browser` runs Playwright checks in real Chromium, and `npm run fuzz` differentially fuzzes the `html` tag against `parse5`. CI also checks the minimum supported Node version, installs the packed package with npm, Yarn, and pnpm, and runs the third-party template-engine matrix.
 
-Edit `src/*.ts`; `dist/` is compiler output. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Edit `src/*.ts`; `dist/` is untracked compiler output. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Design boundary
 

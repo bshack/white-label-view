@@ -133,7 +133,7 @@ test('opt-in updates preserve focus and selection and can fall back to a new tem
     const view = new View({parentElement: document.querySelector('main'), model: data,
         template: () => '<div><input value="Ada"><span></span></div>',
         update: (element, state) => {
-            if (!update) return false;
+            if (!update) {return false;}
             element.querySelector('span').textContent = state.value;
             return true;
         }

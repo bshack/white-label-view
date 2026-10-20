@@ -33,18 +33,40 @@ test('unquoted attribute values end only at whitespace or >', () => {
 test('attribute boundaries reject insertions whose meaning depends on the inserted value', () => {
     assert.throws(
         () => html`<input disabled ${attributes({title: 't'})}="${payload}">`,
-        /ambiguous/
+        /attribute boundary/
     );
     assert.throws(
         () => html`<input disabled ${attributes({title: 't'})} = "${payload}">`,
-        /ambiguous/
+        /attribute boundary/
     );
-    assert.throws(() => html`<script${attributes({type: 'module'})}x>${'alert(1)'}</script>`, /ambiguous/);
+    assert.throws(() => html`<script${attributes({type: 'module'})}x>${'alert(1)'}</script>`, /attribute boundary/);
     assert.equal(
         text(html`<input disabled ${attributes({title: 't'})} name="${'n'}">`),
         '<input disabled title="t" name="n">'
     );
     assert.equal(text(html`<input${attributes({title: 't'})}/><p>${'x'}</p>`), '<input title="t"/><p>x</p>');
+});
+
+test('attributes() is rejected where the insertion itself would change how the tag is parsed', () => {
+    const value = attributes({title: 't'});
+    // Inside a tag name: an empty insertion would join "a" and "b" into one name.
+    assert.throws(() => html`<a${value}b>`, /attribute boundary/);
+    assert.throws(() => html`<a${null}b>`, /attribute boundary/);
+    assert.throws(() => html`<a${value}${value}b>`, /attribute boundary/);
+    // Before "=": an empty insertion would assign the value to the preceding attribute.
+    assert.throws(() => html`<a b ${value}=c>`, /attribute boundary/);
+    assert.throws(() => html`<a b ${value} =c>`, /attribute boundary/);
+    assert.throws(() => html`<a b ${value}${''}=c>`, /attribute boundary/);
+    // End tags carry no attributes.
+    assert.throws(() => html`</a ${value}>`, /attribute boundary/);
+    assert.throws(() => html`</a b ${value}>`, /attribute boundary/);
+    assert.throws(() => html`</a b="c"${value}>`, /attribute boundary/);
+    assert.throws(() => html`</a${value}>`, /attribute boundary/);
+    // Unambiguous neighbours still work, including when later markup is ambiguous for other reasons.
+    assert.equal(text(html`<a${value} b>`), '<a title="t" b>');
+    assert.equal(text(html`<a b ${value} c=d>`), '<a b title="t" c=d>');
+    assert.equal(text(html`<a b ${value}${value}>`), '<a b title="t" title="t">');
+    assert.equal(text(html`<a${value}><svg><style></style></svg>`), '<a title="t"><svg><style></style></svg>');
 });
 
 test('RCDATA elements escape text and do not track tags until their end tag', () => {

@@ -17,11 +17,11 @@ function observable(value) {
     target.value = value;
     target.get = function() {return {value:this.value};};
     target.addEventListener = function(type, listener, options) {
-        if (type === 'change') listeners.add(listener);
+        if (type === 'change') {listeners.add(listener);}
         return add(type, listener, options);
     };
     target.removeEventListener = function(type, listener, options) {
-        if (type === 'change') listeners.delete(listener);
+        if (type === 'change') {listeners.delete(listener);}
         return remove(type, listener, options);
     };
     target.listenerCount = () => listeners.size;
@@ -100,7 +100,7 @@ test('invalid roots fail repeatedly without poisoning the successful render cach
     const root=view.element;
     for(const result of ['', 'text', '<!--comment-->', '<p>one</p><p>two</p>', '<p>one</p>tail', null, document.createDocumentFragment(), document.createTextNode('text')]) {
         view.template=()=>result;
-        for(let i=0;i<2;i++) assert.throws(()=>view.render(),/exactly one root/);
+        for(let i=0;i<2;i++) {assert.throws(()=>view.render(),/exactly one root/);}
         assert.equal(view.element,root);assert.equal(parent.textContent,'good');
     }
     view.template=()=>'<p>recovered</p>';view.render();assert.equal(parent.textContent,'recovered');view.destroy();
@@ -196,7 +196,7 @@ test('cleanup continues after a child or subclass hook fails', t => {
     owner.addChild(new Bad()).addChild(new Good());
     assert.throws(()=>owner.destroy(),/Unable to destroy child/);assert.equal(cleaned,1);assert.equal(model.listenerCount(),0);assert.equal(parent.childNodes.length,0);
     let fail=false,calls=0;
-    class Hook extends View {removeListeners(){if(fail)throw Error('hook failure');return this;}}
+    class Hook extends View {removeListeners(){if(fail){throw Error('hook failure');}return this;}}
     const hooked=new Hook({parentElement:parent,model,template:()=>'<button></button>'}).initialize();const root=hooked.element;
     hooked.delegated.on('click','button',()=>calls++);fail=true;
     assert.throws(()=>hooked.destroy(),/hook failure/);root.dispatchEvent(new window.MouseEvent('click'));
