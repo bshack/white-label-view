@@ -2,7 +2,7 @@
 
 These instructions are more specific than the repository-root agent guide for files under `src/`.
 
-## View 7 public contract
+## View 8 public contract
 
 - Observable models bind through the standards-based `addEventListener()` / `removeEventListener()` contract.
 - Treat incremental adoption of existing server-rendered DOM as a first-class browser use case. A View may adopt an attached `element`, bind lifecycle/model behavior to it, and use `update(element, data)` without requiring a client template when in-place updates fully handle rendering.
