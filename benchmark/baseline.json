@@ -1,0 +1,23 @@
+{
+  "node": "v24.21.0",
+  "tolerance": 3,
+  "operations": {
+    "tagged HTML generation": {
+      "iterations": 200000,
+      "milliseconds": 207.54
+    },
+    "tagged HTML nested generation": {
+      "iterations": 50000,
+      "milliseconds": 240.55
+    },
+    "unchanged tagged render": {
+      "iterations": 50000,
+      "milliseconds": 53.17
+    }
+  },
+  "counters": {
+    "tagged HTML generation output length": 44,
+    "tagged HTML nested generation output length": 76,
+    "unchanged tagged render root replacements": 0
+  }
+}

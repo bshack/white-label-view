@@ -86,9 +86,36 @@ const view = new View({
 }).initialize();
 ```
 
-Normal text and quoted-attribute interpolations are HTML-escaped. Nested `html`` ` results and arrays of tagged-template results compose without double escaping. `null`, `undefined`, and booleans render no text; numbers and bigints render as text.
+`html` returns `HTMLMarkup`, which Browser View and Server View both accept. It must be called as a tag; calling it with a non-array or an empty array (for example `html([])`) throws `TypeError`.
 
-The tag rejects ambiguous or dangerous interpolation locations such as tag names, unquoted attributes, HTML comments, `<script>` bodies, and `<style>` bodies. Objects, functions, symbols, promises, DOM nodes, and other unsupported values also throw instead of being coerced implicitly.
+### Where interpolation is allowed
+
+The tag reads the template's fixed text the way a browser's HTML tokenizer would, and decides once per template what each `${…}` position is. Values are then escaped for that position or rejected with a `TypeError`. It never guesses: when it cannot be sure how a browser will read the rest of the template, it rejects every later interpolation.
+
+| Position | Example | Result |
+| --- | --- | --- |
+| Text content | `<p>${value}</p>` | **Escaped.** Strings, numbers, and bigints render as text; `null`, `undefined`, and booleans render nothing. Nested `html` results, `unsafeHTML()`, and arrays of these are inserted as markup. |
+| `<textarea>` or `<title>` content | `<textarea>${value}</textarea>` | **Escaped** primitives (or arrays of them). Nested markup is **rejected** because it could close the element. |
+| Quoted attribute value | `title="${value}"`, `title='${value}'` | **Escaped** primitives. `null`/`undefined` render an empty value; booleans render `true`/`false`. Arrays and markup are rejected. |
+| Quoted `on*` handler or `srcdoc` value | `onclick="${value}"` | **Rejected.** |
+| Opening tag, at an attribute boundary | `<input ${attributes({…})}>`, `<input${attributes({…})}>`, `class="a"${attributes({…})}` | Only `attributes()` results, `null`, `undefined`, or `false`. Strings and other values are rejected. |
+| Opening tag, where the insertion would change how the tag reads | `<a${attributes({…})}b>`, `<a b ${attributes({…})}=c>` | **Rejected**, even for `null`/`undefined`/`false`: an empty insertion would join the tag name or assign `=c` to `b`. |
+| End tag | `</a ${attributes({…})}>` | **Rejected.** End tags carry no attributes. |
+| Tag name, attribute name, unquoted value | `<${tag}>`, `title=${value}` | **Rejected.** |
+| Comment, DOCTYPE, or other `<!…>` / `<?…>` declaration | `<!-- ${value} -->`, `<!doctype ${value}>` | **Rejected.** |
+| `<script>`, `<style>`, `<xmp>`, `<iframe>`, `<noembed>`, `<noframes>`, `<noscript>`, or `<plaintext>` content | `<style>${value}</style>` | **Rejected.** |
+| Text inside `<svg>` or `<math>` | `<svg><text>${value}</text></svg>` | **Escaped** as text. Nested markup is checked as SVG/MathML content. |
+| Anywhere after markup whose parsing is ambiguous | see below | **Rejected**, for this and every later interpolation in the template. |
+
+Markup counts as ambiguous when its meaning depends on something the template cannot show, for example:
+
+- `<script>` or `<style>` inside `<svg>`/`<math>`, or any raw-text element (such as `<textarea>`) after an SVG/MathML integration point like `<foreignObject>` or a tag such as `<p>` that can leave foreign content;
+- `<noscript>` content that would end in a different place with scripting turned off;
+- a raw-text element other than `<script>` or `<textarea>` (such as `<title>` or `<style>`) inside an open `<select>`, because older parsers ignore it there and read its content as markup. Nested markup interpolated inside a `<select>` is checked in that context, and nested markup may not leave a `<select>` open.
+
+A `<script>` that contains `<!--<script` stays open to the end of the template, so later interpolations are rejected as script content. A `<` that does not start a tag is ordinary text (`1 < 2 ${value}` works), and `<!-->` and `<!--->` are complete empty comments.
+
+Nested markup must itself end in ordinary text: `html` results and `unsafeHTML()` strings that leave a tag, attribute, comment, raw-text element, or SVG/MathML element open are rejected when interpolated. Objects, functions, symbols, promises, DOM nodes, and other unsupported values throw instead of being converted to strings.
 
 ### Conditional and boolean attributes
 
@@ -177,7 +204,7 @@ const view = new View({
 
 When the root is attached, View calls `update(element, data)` before requiring a template. Returning `true` means the current DOM handled the render. If it returns `false`, View falls back to the configured template when one exists.
 
-Keep ownership explicit: View owns the adopted root and its lifecycle, not unrelated host-rendered siblings. `destroy()` removes the root it owns, so a host that intends to keep an element after enhancement teardown should structure ownership accordingly.
+Keep ownership explicit: View owns the adopted root and its lifecycle, not unrelated host-rendered siblings. `destroy()` removes the root it owns, so a host that intends to keep an element after enhancement teardown should structure ownership accordingly. Likewise, when an adopted root is not inside `parentElement` and a template render replaces it, View removes the old root from its current parent and inserts the new root into `parentElement` rather than leaving both in the document.
 
 ## Server rendering
 
@@ -220,7 +247,6 @@ White Label pre-tests these representative third-party integrations through both
 - Pug `3.0.4`
 - KitaJS HTML `4.2.13`
 
-
 See [`TEMPLATE_ENGINES.md`](TEMPLATE_ENGINES.md) and the [public template-engine guide](https://whitelabeljs.org/docs/view/#template-engines) for the tested matrix, integration contract, and trust boundaries.
 
 ## Browser lifecycle
@@ -233,7 +259,7 @@ When template rendering is used, browser output must resolve to exactly one elem
 
 ## Events and delegated events
 
-Use `addListeners()` when a View owns browser events. For events inside a rendered root, `this.delegated` keeps listener ownership aligned with the View lifecycle and is cleared automatically when the root is replaced or the View is destroyed.
+Use `addListeners()` when a View owns browser events. For events inside a rendered root, `this.delegated` keeps listener ownership aligned with the View lifecycle: registrations made once a root is mounted (including in `addListeners()`) are cleared automatically when the root is replaced or the View is destroyed. Registrations made before the View mounts a root, for example in a constructor or before `initialize()`, belong to the View instead: they are moved to each replacement root and released by `destroy()`.
 
 ```ts
 import View from 'white-label-view';
@@ -296,7 +322,7 @@ For public content, prefer meaningful server-rendered or static initial HTML and
 | `initializeModelBinding()` | Subscribe to model `change` events. | `undefined`. |
 | `destroyModelBinding()` | Release model subscription and queued work, resetting binding state even if external listener removal throws. | `undefined`. |
 | `addListeners()` | Extension hook during root activation after installation/adoption. | The same View by default. |
-| `removeListeners()` | Extension hook before replacement/destruction and during failed-mount rollback. | The same View by default. |
+| `removeListeners()` | Extension hook before a mounted root is replaced or destroyed, and during failed-mount rollback. Not called for a View that never mounted a root. | The same View by default. |
 | `afterMount()` | Extension hook after insertion/adoption and listener setup. | The same View by default. |
 | `destroy()` | Best-effort release of listeners, binding, children, queued work, and DOM root. | The same View after successful cleanup; cleanup failures are reported after remaining cleanup is attempted. |
 
@@ -344,18 +370,12 @@ All entrypoints use strict TypeScript and emit JavaScript, source maps, and decl
 
 ```sh
 npm ci --ignore-scripts
-npm run build
-npm run lint
-npm run typecheck
-npm test
-npm run coverage
-npm run audit
-npm pack --dry-run
+npm run lint && npm run coverage && npm run audit
 ```
 
-Coverage enforces 100% statements, branches, functions, and lines per implementation file. CI verifies the documented Node minimum and primary Node line, builds authored source, verifies public package subpaths from the packed artifact, tests npm/Yarn/pnpm compatibility, and runs the isolated template-engine matrix.
+`npm run coverage` builds (which typechecks), runs the consumer type checks and every Node test, and enforces 100% statements, branches, functions, and lines per implementation file, so `npm run typecheck` and `npm test` need no separate run. `npm run benchmark` measures render and tagged-template performance, and `npm run bench:ci` runs a short version against `benchmark/baseline.json`. `npm run test:browser` runs Playwright checks in real Chromium, and `npm run fuzz` differentially fuzzes the `html` tag against `parse5`. CI also checks the minimum supported Node version, installs the packed package with npm, Yarn, and pnpm, and runs the third-party template-engine matrix.
 
-Edit `src/*.ts` and regenerate `dist`; do not edit generated files directly.
+Edit `src/*.ts`; `dist/` is untracked compiler output. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Design boundary
 

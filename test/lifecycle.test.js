@@ -87,6 +87,7 @@ test('delegation filters events and removes only matching registrations', t => {
     view.element.querySelector('span').dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
     assert.equal(count, 1);
     view.element.dispatchEvent(new window.MouseEvent('click'));
+    assert.equal(count, 1);
     events.off('click', 'a').off('click', 'button', () => {});
     assert.equal(events.listeners.length, 2);
     events.off('click', 'button', callback);
@@ -132,7 +133,7 @@ test('opt-in updates preserve focus and selection and can fall back to a new tem
     const view = new View({parentElement: document.querySelector('main'), model: data,
         template: () => '<div><input value="Ada"><span></span></div>',
         update: (element, state) => {
-            if (!update) return false;
+            if (!update) {return false;}
             element.querySelector('span').textContent = state.value;
             return true;
         }
@@ -147,4 +148,99 @@ test('opt-in updates preserve focus and selection and can fall back to a new tem
     update = false; view.render();
     assert.notEqual(view.element.querySelector('input'), input);
     view.destroy();
+});
+
+test('removeListeners runs only after addListeners ran for a mounted root', t => {
+    dom(t);
+    const events = [];
+    class Tracked extends View {
+        addListeners() {events.push('add'); return this;}
+        removeListeners() {events.push('remove'); return this;}
+    }
+    let text = 'one';
+    const view = new Tracked({parentElement: document.querySelector('main'), template: () => `<p>${text}</p>`}).initialize();
+    assert.deepEqual(events, ['add']);
+    text = 'two';
+    view.render();
+    assert.deepEqual(events, ['add', 'remove', 'add']);
+    view.destroy();
+    assert.deepEqual(events, ['add', 'remove', 'add', 'remove']);
+    view.destroy();
+    new Tracked().destroy();
+    new Tracked({parentElement: document.querySelector('main')}).destroy();
+    assert.deepEqual(events, ['add', 'remove', 'add', 'remove']);
+});
+
+test('delegated registrations made before the first mount follow the view root until destroy', t => {
+    const window = dom(t);
+    const parentElement = document.querySelector('main');
+    const calls = [];
+    class Early extends View {
+        constructor(settings) {
+            super(settings);
+            this.delegated.on('click', 'button', function () {calls.push(this.textContent);});
+        }
+    }
+    let text = 'one';
+    const view = new Early({parentElement, template: () => `<div><button>${text}</button></div>`});
+    const controller = new AbortController();
+    view.delegated.on('click', 'button', () => calls.push('once'), {once: true});
+    view.delegated.on('click', 'button', () => calls.push('signal'), {signal: controller.signal});
+    view.initialize();
+    const click = () => view.element.querySelector('button').dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
+    click();
+    assert.deepEqual(calls, ['one', 'once', 'signal']);
+    text = 'two';
+    view.render();
+    view.delegated.on('click', 'button', () => calls.push('root-scoped'));
+    click();
+    assert.deepEqual(calls, ['one', 'once', 'signal', 'two', 'signal', 'root-scoped']);
+    controller.abort();
+    text = 'three';
+    view.render();
+    click();
+    assert.deepEqual(calls.slice(6), ['three']);
+    assert.equal(view.delegated.listeners.length, 1);
+    const last = view.element;
+    view.destroy();
+    last.querySelector('button').dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
+    assert.deepEqual(calls.slice(6), ['three']);
+    assert.equal(view.delegated.listeners.length, 0);
+});
+
+test('pre-mount delegated registrations survive adoption, failed mounts, and retries', t => {
+    const window = dom(t);
+    const parentElement = document.querySelector('main');
+    parentElement.innerHTML = '<button>adopted</button>';
+    let calls = 0;
+    let fail = true;
+    class Flaky extends View {
+        addListeners() {
+            this.delegated.on('click', 'button', () => {calls += 100;});
+            if (fail) {fail = false; throw new Error('mount failed');}
+            return this;
+        }
+    }
+    const view = new Flaky({parentElement, element: parentElement.firstChild, template: () => '<button>new</button>'});
+    view.delegated.on('click', 'button', () => {calls += 1;}, true);
+    assert.throws(() => view.initialize(), /mount failed/);
+    assert.equal(view.delegated.listeners.length, 1);
+    view.initialize();
+    view.element.dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
+    assert.equal(calls, 101);
+    assert.equal(view.delegated.listeners[0].capture, true);
+    view.destroy();
+});
+
+test('adopted roots outside parentElement are moved instead of duplicated', t => {
+    const window = new JSDOM('<main></main><aside><p id="old">old</p></aside>').window;
+    t.after(() => window.close());
+    const {document: page} = window;
+    const parentElement = page.querySelector('main');
+    const view = new View({parentElement, element: page.getElementById('old'), template: () => '<p>new</p>'}).initialize();
+    assert.equal(page.querySelector('aside').childNodes.length, 0);
+    assert.equal(page.querySelectorAll('p').length, 1);
+    assert.equal(parentElement.firstChild, view.element);
+    view.destroy();
+    assert.equal(page.querySelectorAll('p').length, 0);
 });
